@@ -1,1 +1,100 @@
-# Скоро появятся первые наработки...
+import pygame
+import os
+import sys
+from PIL import Image, ImageSequence
+
+
+def load_image(name, colorkey=None):
+    fullname = os.path.join('data', name)
+    # если файл не существует, то выходим
+    if not os.path.isfile(fullname):
+        print(f"Файл с изображением '{fullname}' не найден")
+        sys.exit()
+    image = pygame.image.load(fullname)
+    return image
+
+
+def split_gif(gif_file):
+    # Создаем полный путь к файлу
+    gif_path = os.path.join('data', gif_file)  # 'data' - папка, gif_file - имя файла
+    img = Image.open(gif_path)  # Открываем GIF-файл
+    frames = []  # Инициализируем пустой список для хранения кадров
+    for frame in ImageSequence.Iterator(img):  # Проходим по всем кадрам с помощью итератора
+        frames.append(frame.copy())  # Копируем текущий кадр и добавляем его в список
+    return frames  # Возвращаем список всех кадров
+
+
+def save_frames(frames, name):
+    # Сохраняем каждый кадр в указанной папке
+    count_frames = 0
+    for i, frame in enumerate(frames):
+        count_frames = i
+        frame.save(os.path.join('data', f'{name}_{i}.png'))
+    return count_frames
+
+
+class BackGround(pygame.sprite.Sprite):
+    def __init__(self, image_file):
+        super().__init__()
+        self.name = image_file
+        self.count_frames = save_frames(split_gif(self.name), self.name[0: -4])
+        self.current_frame = 0
+
+    def draw(self, surface):
+        surface.blit(pygame.transform.scale(load_image(f'{self.name[0: -4]}_{int(self.current_frame)}.png'), size),
+                     (0, 0))
+
+    def animate(self, time):
+        fp = 20
+        self.current_frame += time / (1000 / fp)
+        self.current_frame %= self.count_frames
+
+
+class Window:
+    def __init__(self, list_objects: list, background: BackGround):
+        self.list_objects = list_objects
+        self.background = background
+        self.clock = pygame.time.Clock()
+
+    def update(self):
+        time = self.clock.get_time()
+        self.background.draw(screen)
+        self.background.animate(time)
+        for i in range(len(self.list_objects)):
+            self.list_objects[i].draw()
+            self.list_objects[i].animate(time)
+        self.clock.tick(fps)
+
+    def add_obj(self, obj):
+        self.list_objects.append(obj)
+
+    def remove_obj(self, obj):
+        self.list_objects.remove(obj)
+
+
+if __name__ == "__main__":
+    pygame.init()
+    pygame.display.set_caption('Draw for Drive')
+    size = width, height = pygame.display.Info().current_w, pygame.display.Info().current_h
+    screen = pygame.display.set_mode(size, pygame.NOFRAME)
+    running = True
+    fps = 60
+
+    b = BackGround('backgroundanimate1.gif')
+    w = Window([], b)
+
+    while running:
+        # внутри игрового цикла ещё один цикл
+        # приёма и обработки сообщений
+        for event in pygame.event.get():
+            # при закрытии окна
+            if event.type == pygame.QUIT:
+                running = False
+                # РЕАКЦИЯ НА ОСТАЛЬНЫЕ СОБЫТИЯ
+            ...
+        # отрисовка и изменение свойств объектов
+
+        w.update()
+
+        pygame.display.flip()
+
