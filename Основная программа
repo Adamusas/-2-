@@ -39,15 +39,66 @@ class BackGround(pygame.sprite.Sprite):
         self.name = image_file
         self.count_frames = save_frames(split_gif(self.name), self.name[0: -4])
         self.current_frame = 0
+        self.fps = 20
 
     def draw(self, surface):
         surface.blit(pygame.transform.scale(load_image(f'{self.name[0: -4]}_{int(self.current_frame)}.png'), size),
                      (0, 0))
 
     def animate(self, time):
-        fp = 20
-        self.current_frame += time / (1000 / fp)
+        self.current_frame += time / (1000 / self.fps)
         self.current_frame %= self.count_frames
+
+
+class Button:
+    def __init__(self, x: int, y: int, w: int, h: int, text: str, size_font: int, color_main: (int, int, int),
+                 function):
+        self.rect = pygame.Rect(x, y, w, h)
+        self.text = text
+        self.color_main = color_main
+        self.action = function
+        self.flag_click = False
+        self.size_font = size_font
+        self.font = pygame.font.SysFont('Arial', self.size_font)  # Шрифт для текста
+        # self.current_color = list(color_main)
+        self.current_size = size_font
+        self.time_animation = 500
+        self.time_first_part = self.time_animation / 10
+        self.time_second_part = self.time_animation - self.time_first_part
+        self.real_time = 0
+
+    def draw(self):
+        text_surface = self.font.render(self.text, True, self.color_main)
+        text_rect = text_surface.get_rect(center=self.rect.center)  # Центрируем текст
+        screen.blit(text_surface, text_rect)
+
+    def animate(self, time):
+        if not self.flag_click:
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if self.rect.collidepoint(event.pos):  # Проверяем нажатие на кнопку
+                    self.flag_click = True
+                    self.action()
+                    if self.real_time == 0:
+                        self.real_time += time
+                    else:
+                        self.real_time = time
+
+        if self.flag_click:
+            if event.type == pygame.MOUSEBUTTONUP:
+                self.flag_click = False
+
+        if self.real_time > 0:
+            if self.real_time < self.time_first_part:
+                self.current_size = self.size_font - (self.size_font * 0.5 * (self.real_time / self.time_first_part))
+            elif (self.real_time - self.time_first_part) < self.time_second_part:
+                self.current_size = self.size_font * 0.5 * (
+                            ((self.real_time - self.time_first_part) / self.time_second_part) + 1)
+            self.real_time += time
+            if self.real_time > self.time_animation:
+                self.real_time = 0
+                self.current_size = self.size_font
+
+            self.font = pygame.font.SysFont('Arial', int(self.current_size))
 
 
 class Window:
@@ -80,8 +131,17 @@ if __name__ == "__main__":
     running = True
     fps = 60
 
-    b = BackGround('backgroundanimate1.gif')
-    w = Window([], b)
+
+    def j():
+        print('j')
+
+
+    main_window = Window([Button(100, 100, 100, 100, 'START', 50, (255, 0, 0), j)], BackGround('mainmenu.gif'))
+
+    active_window = 'main'
+    dict_windows = {'main': main_window
+
+                    }
 
     while running:
         # внутри игрового цикла ещё один цикл
@@ -93,8 +153,6 @@ if __name__ == "__main__":
                 # РЕАКЦИЯ НА ОСТАЛЬНЫЕ СОБЫТИЯ
             ...
         # отрисовка и изменение свойств объектов
-
-        w.update()
+        dict_windows[active_window].update()
 
         pygame.display.flip()
-
