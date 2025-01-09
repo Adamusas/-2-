@@ -49,10 +49,36 @@ class BackGround(pygame.sprite.Sprite):
         self.current_frame += time / (1000 / self.fps)
         self.current_frame %= self.count_frames
 
+class Road:
+    def __init__(self, decor_obj):
+        self.decor = decor_obj
+
+    def draw(self):
+        ...
+
+
+
+
+
+        self.decor.draw()
+
+
+
+    def animate(self):
+        ...
+
+
+    
+        self.decor.animate()
+        
+class Decor:
+    ...
+
+
 
 class Button:
     def __init__(self, x: int, y: int, w: int, h: int, text: str, size_font: int, color_main: (int, int, int),
-                 function):
+                 function, animation: bool):
         self.rect = pygame.Rect(x, y, w, h)
         self.text = text
         self.color_main = color_main
@@ -60,14 +86,16 @@ class Button:
         self.flag_click = False
         self.size_font = size_font
         self.font = pygame.font.SysFont('Arial', self.size_font)  # Шрифт для текста
-        # self.current_color = list(color_main)
+        self.current_color = list(color_main)
         self.current_size = size_font
         self.time_animation = 500
         self.time_first_part = self.time_animation / 10
         self.time_second_part = self.time_animation - self.time_first_part
         self.real_time = 0
+        self.animation = animation
 
     def draw(self):
+        pygame.draw.rect(screen, self.color_main, self.rect, 10)
         text_surface = self.font.render(self.text, True, self.color_main)
         text_rect = text_surface.get_rect(center=self.rect.center)  # Центрируем текст
         screen.blit(text_surface, text_rect)
@@ -78,10 +106,11 @@ class Button:
                 if self.rect.collidepoint(event.pos):  # Проверяем нажатие на кнопку
                     self.flag_click = True
                     self.action()
-                    if self.real_time == 0:
-                        self.real_time += time
-                    else:
-                        self.real_time = time
+                    if self.animation:
+                        if self.real_time == 0:
+                            self.real_time += time
+                        else:
+                            self.real_time = time
 
         if self.flag_click:
             if event.type == pygame.MOUSEBUTTONUP:
@@ -92,7 +121,7 @@ class Button:
                 self.current_size = self.size_font - (self.size_font * 0.5 * (self.real_time / self.time_first_part))
             elif (self.real_time - self.time_first_part) < self.time_second_part:
                 self.current_size = self.size_font * 0.5 * (
-                            ((self.real_time - self.time_first_part) / self.time_second_part) + 1)
+                        ((self.real_time - self.time_first_part) / self.time_second_part) + 1)
             self.real_time += time
             if self.real_time > self.time_animation:
                 self.real_time = 0
@@ -136,11 +165,12 @@ if __name__ == "__main__":
         print('j')
 
 
-    main_window = Window([Button(100, 100, 100, 100, 'START', 50, (255, 0, 0), j)], BackGround('mainmenu.gif'))
+    main_window = Window([Button(100, 100, 200, 100, 'START', 50, (255, 0, 0), j, animation=True)],
+                         BackGround('mainmenu.gif'))
 
     active_window = 'main'
-    dict_windows = {'main': main_window
-
+    dict_windows = {'main': main_window,
+                    # 'select_your_car':
                     }
 
     while running:
