@@ -1,7 +1,9 @@
 import pygame
 import os
 import sys
+import math
 from PIL import Image, ImageSequence
+from pygame.examples.cursors import image
 
 
 def load_image(name, colorkey=None):
@@ -33,6 +35,20 @@ def save_frames(frames, name):
     return count_frames
 
 
+class Ball(pygame.sprite.Sprite):
+    def __init__(self, size, pos=(0, 0), color=(255, 0, 0)):
+        super().__init__()
+        self.image = pygame.Surface([size, size], pygame.SRCALPHA)
+        pygame.draw.ellipse(self.image, color, [0, 0, size, size], 1)
+        self.rect = self.image.get_rect()
+        self.rect.center = pos
+        self.radius = size // 2  # Устанавливаем радиус для проверки коллизии
+        self.x, self.y = pos
+
+    def draw(self):
+        screen.blit(self.image, (self.x, self.y))
+
+
 class BackGround(pygame.sprite.Sprite):
     def __init__(self, image_file):
         super().__init__()
@@ -41,39 +57,63 @@ class BackGround(pygame.sprite.Sprite):
         self.current_frame = 0
         self.fps = 20
 
-    def draw(self, surface):
-        surface.blit(pygame.transform.scale(load_image(f'{self.name[0: -4]}_{int(self.current_frame)}.png'), size),
-                     (0, 0))
+    def draw(self):
+        screen.blit(pygame.transform.scale(load_image(f'{self.name[0: -4]}_{int(self.current_frame)}.png'), size),
+                    (0, 0))
 
     def animate(self, time):
         self.current_frame += time / (1000 / self.fps)
         self.current_frame %= self.count_frames
 
-class Road:
-    def __init__(self, decor_obj):
-        self.decor = decor_obj
+
+class Decor(pygame.sprite.Sprite):
+    def __init__(self, pos, image_file=None):
+        super().__init__()
+        self.x, self.y = pos
+        self.name = image_file
 
     def draw(self):
-        ...
+        if self.name: screen.blit(load_image(self.name), (self.x, self.y))
 
 
-
-
-
-        self.decor.draw()
-
-
-
-    def animate(self):
-        ...
-
-
-    
-        self.decor.animate()
-        
-class Decor:
+class Car:
     ...
 
+
+class Object:
+    def __init__(self, hit_box, image_obj):
+        self.image = image_obj
+        self.hit_box = hit_box
+
+    def draw(self):
+        self.image.draw()
+        self.hit_box.draw()
+
+
+class Road:
+    def __init__(self, width_road=1, decor=None):
+        self.list_segments = []
+        self.decor = decor
+        self.width = width_road
+        self.speed = 100
+        self.vector_angle = 0
+
+    def draw(self):
+        for i in range(len(self.list_segments)):
+            self.list_segments[i].draw()
+
+    def animate(self, time):
+        if pygame.mouse.get_pressed()[0]:
+            if not self.list_segments:
+                self.list_segments.append(Object(Ball(self.width, event.pos), Decor(event.pos, self.decor)))
+            if math.dist((self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y),
+                         event.pos) >= self.width / 2:
+                self.list_segments.append(Object(Ball(self.width, event.pos), Decor(event.pos, self.decor)))
+        for i in range(len(self.list_segments)):
+            self.list_segments[i].hit_box.x += time / 1000 * (self.speed * math.cos(self.vector_angle))
+            self.list_segments[i].hit_box.y += time / 1000 * (self.speed * math.sin(self.vector_angle))
+            self.list_segments[i].image.x += time / 1000 * (self.speed * math.cos(self.vector_angle))
+            self.list_segments[i].image.y += time / 1000 * (self.speed * math.sin(self.vector_angle))
 
 
 class Button:
@@ -138,7 +178,7 @@ class Window:
 
     def update(self):
         time = self.clock.get_time()
-        self.background.draw(screen)
+        self.background.draw()
         self.background.animate(time)
         for i in range(len(self.list_objects)):
             self.list_objects[i].draw()
@@ -165,7 +205,7 @@ if __name__ == "__main__":
         print('j')
 
 
-    main_window = Window([Button(100, 100, 200, 100, 'START', 50, (255, 0, 0), j, animation=True)],
+    main_window = Window([Button(100, 100, 200, 100, 'START', 50, (255, 0, 0), j, animation=True), Road(10)],
                          BackGround('mainmenu.gif'))
 
     active_window = 'main'
