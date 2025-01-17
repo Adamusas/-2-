@@ -3,7 +3,6 @@ import os
 import sys
 import math
 from PIL import Image, ImageSequence
-from pygame.examples.cursors import image
 
 
 def load_image(name, colorkey=None):
@@ -35,7 +34,7 @@ def save_frames(frames, name):
     return count_frames
 
 
-class Ball(pygame.sprite.Sprite):
+class BallHitbox(pygame.sprite.Sprite):
     def __init__(self, size, pos=(0, 0), color=(255, 0, 0)):
         super().__init__()
         self.image = pygame.Surface([size, size], pygame.SRCALPHA)
@@ -56,29 +55,25 @@ class BackGround(pygame.sprite.Sprite):
         self.count_frames = save_frames(split_gif(self.name), self.name[0: -4])
         self.current_frame = 0
         self.fps = 20
+        self.image = [pygame.transform.scale(load_image(f'{self.name[0: -4]}_{i}.png'), size) for i in
+                      range(self.count_frames)]
 
     def draw(self):
-        screen.blit(pygame.transform.scale(load_image(f'{self.name[0: -4]}_{int(self.current_frame)}.png'), size),
-                    (0, 0))
+        screen.blit(self.image[int(self.current_frame)], (0, 0))
 
     def animate(self, time):
         self.current_frame += time / (1000 / self.fps)
         self.current_frame %= self.count_frames
 
 
-class Decor(pygame.sprite.Sprite):
-    def __init__(self, pos, gabarit, image_file=None):
+class DecorRoad(pygame.sprite.Sprite):
+    def __init__(self, pos, image_file=None):
         super().__init__()
-        self.width = gabarit
         self.x, self.y = pos
         self.name = image_file
 
     def draw(self):
-        if self.name: screen.blit(pygame.transform.scale(load_image(self.name), self.width), (self.x, self.y))
-
-
-class Car:
-    ...
+        if self.name: screen.blit(self.name, (self.x, self.y))
 
 
 class Object:
@@ -88,7 +83,6 @@ class Object:
 
     def draw(self):
         self.image.draw()
-        self.hit_box.draw()
 
 
 class Road:
@@ -98,33 +92,55 @@ class Road:
         self.width = width_road
         self.speed = 100
         self.vector_angle = 180
+        self.end_line = False
+        self.is_pressed = False
 
     def draw(self):
-        for i in range(len(self.list_segments)):
-            self.list_segments[i].draw()
+        for segment in self.list_segments:
+            segment.draw()  # Отрисовываем каждый сегмент
 
     def animate(self, time):
+        # Обработка нажатия мыши
         if pygame.mouse.get_pressed()[0]:
-            if not self.list_segments:
+
+            pos = (pygame.mouse.get_pos()[0] - self.width / 2, pygame.mouse.get_pos()[1] - self.width / 2)
+            if not self.list_segments: self.list_segments.append(
+                Object(BallHitbox(self.width, pos), DecorRoad(pos, self.decor)))
+            if not self.list_segments or math.dist((self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y),
+                                                   pos) >= self.width / 4:
+                last_segment_pos = (self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y)
                 self.list_segments.append(
-                    Object(Ball(self.width, event.pos), Decor(event.pos, (self.width, self.width), self.decor)))
-            if math.dist((self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y),
-                         event.pos) >= self.width / 2:
-                self.list_segments.append(
-                    Object(Ball(self.width, event.pos), Decor(event.pos, (self.width, self.width), self.decor)))
-        cnt = 0
+                    Object(BallHitbox(self.width, pos), DecorRoad(pos, self.decor)))
+                if not self.end_line:
+                    distance = math.dist(last_segment_pos, pos)
+                    segment_count = int(distance // (self.width / 2))  # Определяем количество сегментов для добавления
+                    for i in range(1, segment_count + 1):
+                        new_pos = (
+                            last_segment_pos[0] + (pos[0] - last_segment_pos[0]) * (i / (segment_count + 1)),
+                            last_segment_pos[1] + (pos[1] - last_segment_pos[1]) * (i / (segment_count + 1))
+                        )
+                        self.list_segments.append(
+                            Object(BallHitbox(self.width, new_pos), DecorRoad(new_pos, self.decor))
+                        )
+                self.is_pressed = True
+                self.end_line = False
+        elif self.is_pressed:
+            self.end_line = True
+            self.is_pressed = True
 
         angle = math.radians(self.vector_angle)
-        for i in range(len(self.list_segments)):
+        delta_x = time / 1000 * (self.speed * math.cos(angle))
+        delta_y = time / 1000 * (self.speed * math.sin(angle))
 
-            if self.list_segments[i - cnt].hit_box.x < -self.width:
-                self.list_segments.pop(i - cnt)
-                cnt += 1
-            if self.list_segments:
-                self.list_segments[i - cnt].hit_box.x += time / 1000 * (self.speed * math.cos(angle))
-                self.list_segments[i - cnt].hit_box.y += time / 1000 * (self.speed * math.sin(angle))
-                self.list_segments[i - cnt].image.x += time / 1000 * (self.speed * math.cos(angle))
-                self.list_segments[i - cnt].image.y += time / 1000 * (self.speed * math.sin(angle))
+        # Обновляем позиции хитбоксов и текстур
+        for segment in reversed(self.list_segments):
+            segment.hit_box.x += delta_x
+            segment.hit_box.y += delta_y
+            segment.image.x += delta_x
+            segment.image.y += delta_y
+
+            if segment.hit_box.x < -self.width:
+                self.list_segments.remove(segment)  # Удаляем сегмент из списка
 
 
 class Button:
@@ -162,11 +178,9 @@ class Button:
                             self.real_time += time
                         else:
                             self.real_time = time
-
         if self.flag_click:
             if event.type == pygame.MOUSEBUTTONUP:
                 self.flag_click = False
-
         if self.real_time > 0:
             if self.real_time < self.time_first_part:
                 self.current_size = self.size_font - (self.size_font * 0.5 * (self.real_time / self.time_first_part))
@@ -177,7 +191,6 @@ class Button:
             if self.real_time > self.time_animation:
                 self.real_time = 0
                 self.current_size = self.size_font
-
             self.font = pygame.font.SysFont('Arial', int(self.current_size))
 
 
@@ -209,21 +222,21 @@ if __name__ == "__main__":
     size = width, height = pygame.display.Info().current_w, pygame.display.Info().current_h
     screen = pygame.display.set_mode(size, pygame.NOFRAME)
     running = True
-    fps = 120
+    fps = 60
 
 
     def j():
         print('j')
 
 
-    main_window = Window([Button(100, 100, 200, 100, 'START', 50, (255, 0, 0), j, animation=True), Road(30)],
-                         BackGround('mainmenu.gif'))
-
+    main_window = Window(
+        [Button(100, 100, 200, 100, 'START', 50, (255, 0, 0), j, animation=True),
+         Road(10, pygame.transform.scale(load_image('yellowbal.png'), (10, 10)))],
+        BackGround('mainmenu.gif'))
     active_window = 'main'
     dict_windows = {'main': main_window,
                     # 'select_your_car':
                     }
-
     while running:
         # внутри игрового цикла ещё один цикл
         # приёма и обработки сообщений
@@ -235,5 +248,4 @@ if __name__ == "__main__":
             ...
         # отрисовка и изменение свойств объектов
         dict_windows[active_window].update()
-
         pygame.display.flip()
