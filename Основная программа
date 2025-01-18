@@ -66,17 +66,17 @@ class BackGround(pygame.sprite.Sprite):
         self.current_frame %= self.count_frames
 
 
-class DecorRoad(pygame.sprite.Sprite):
-    def __init__(self, pos, image_file=None):
+class Decor(pygame.sprite.Sprite):
+    def __init__(self, pos, image_file):
         super().__init__()
         self.x, self.y = pos
         self.name = image_file
 
     def draw(self):
-        if self.name: screen.blit(self.name, (self.x, self.y))
+        screen.blit(self.name, (self.x, self.y))
 
 
-class Object:
+class SegmentRoad:
     def __init__(self, hit_box, image_obj):
         self.image = image_obj
         self.hit_box = hit_box
@@ -85,12 +85,38 @@ class Object:
         self.image.draw()
 
 
+class Bal:
+    def __init__(self, x, y, hitbox, decor, road, velocity=None):
+        if velocity is None:
+            velocity = [10, 0]
+        self.x, self.y = pos = x, y
+        self.velocity = velocity
+        self.hit_box = hitbox
+        self.decor = decor
+        self.road = road
+
+        self.sum_vector = [0, 0]
+        self.g_vector = [270, 9.81]
+        self.reaction_vector = [0, 0]
+        self.round_vector = [0, 0]
+
+    def draw(self):
+        self.decor.draw()
+        self.hit_box.draw()
+
+    def animate(self, time):
+        self.decor.x += self.velocity[0]
+        self.decor.y += self.velocity[1]
+        self.hit_box.x += self.velocity[0]
+        self.hit_box.y += self.velocity[1]
+
+
 class Road:
     def __init__(self, width_road=1, decor=None):
         self.list_segments = []
         self.decor = decor
         self.width = width_road
-        self.speed = 100
+        self.speed = 0
         self.vector_angle = 180
         self.end_line = False
         self.is_pressed = False
@@ -105,12 +131,12 @@ class Road:
 
             pos = (pygame.mouse.get_pos()[0] - self.width / 2, pygame.mouse.get_pos()[1] - self.width / 2)
             if not self.list_segments: self.list_segments.append(
-                Object(BallHitbox(self.width, pos), DecorRoad(pos, self.decor)))
+                SegmentRoad(BallHitbox(self.width, pos), Decor(pos, self.decor)))
             if not self.list_segments or math.dist((self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y),
-                                                   pos) >= self.width / 4:
+                                                   pos) >= self.width / 2:
                 last_segment_pos = (self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y)
                 self.list_segments.append(
-                    Object(BallHitbox(self.width, pos), DecorRoad(pos, self.decor)))
+                    SegmentRoad(BallHitbox(self.width, pos), Decor(pos, self.decor)))
                 if not self.end_line:
                     distance = math.dist(last_segment_pos, pos)
                     segment_count = int(distance // (self.width / 2))  # Определяем количество сегментов для добавления
@@ -120,7 +146,7 @@ class Road:
                             last_segment_pos[1] + (pos[1] - last_segment_pos[1]) * (i / (segment_count + 1))
                         )
                         self.list_segments.append(
-                            Object(BallHitbox(self.width, new_pos), DecorRoad(new_pos, self.decor))
+                            SegmentRoad(BallHitbox(self.width, new_pos), Decor(new_pos, self.decor))
                         )
                 self.is_pressed = True
                 self.end_line = False
@@ -229,9 +255,12 @@ if __name__ == "__main__":
         print('j')
 
 
+    r = Road(10, pygame.transform.scale(load_image('yellowbal.png'), (10, 10)))
+
     main_window = Window(
         [Button(100, 100, 200, 100, 'START', 50, (255, 0, 0), j, animation=True),
-         Road(10, pygame.transform.scale(load_image('yellowbal.png'), (10, 10)))],
+         r, Bal(300, 200, BallHitbox(100, (300, 200)),
+                Decor((300, 200), pygame.transform.scale(load_image('perpelbal.png'), (100, 100))), r)],
         BackGround('mainmenu.gif'))
     active_window = 'main'
     dict_windows = {'main': main_window,
@@ -249,3 +278,5 @@ if __name__ == "__main__":
         # отрисовка и изменение свойств объектов
         dict_windows[active_window].update()
         pygame.display.flip()
+
+"""нет, используй другой подход. имея общий вектор мы можем рассчитать насколько изменится x и y у точки на конце вектора относительно нынешнего положения,.так как m мы берем равный 1, то сила равна ускорению, воспользуйся формулой для нахождения равнодействующей силы между двумя последовательно ее применяя к каждой из действующих сил. если ты все сделаешь правильно, то у тебя будет угол вектора общей силы а также ускорение по этому вектору, теперь нужно просто изменить x и y шара благодоря тригонометрии, узнаем насколько изменилось расстояние между прежними и новыми координатами зная сколько прошло времени между кадрами и ускорение, затем имея это расстояние а также угол вектора можно рассчитать насколько в отдельности изменился x и y, обновляем положение шара и пересчитываем общий вектор"""
