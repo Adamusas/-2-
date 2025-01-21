@@ -5,6 +5,7 @@ import math
 from PIL import Image, ImageSequence
 
 
+
 def load_image(name, colorkey=None):
     fullname = os.path.join('data', name)
     # если файл не существует, то выходим
@@ -34,19 +35,60 @@ def save_frames(frames, name):
     return count_frames
 
 
+def find_ray_circle_intersection(ray_origin, target_point, radius):
+    # Распаковка координат
+    x0, y0 = ray_origin  # Центр окружности (начало луча)
+    x1, y1 = target_point  # Произвольная точка
+
+    # Вектор от центра окружности к произвольной точке
+    dx = x1 - x0
+    dy = y1 - y0
+
+    # Нормализация вектора
+    length = math.sqrt(dx ** 2 + dy ** 2)
+    dx /= length
+    dy /= length
+
+    # Уравнение окружности: (x - x0)^2 + (y - y0)^2 = r^2
+    # Подставляем уравнение линии: y = y0 + dy * t, x = x0 + dx * t
+    # Получаем квадратное уравнение по t:
+
+    a = dx ** 2 + dy ** 2
+    b = 2 * (dx * (x0 - x0) + dy * (y0 - y0))  # Здесь cx и cy равны x0 и y0 соответственно
+    c = (x0 - x0) ** 2 + (y0 - y0) ** 2 - radius ** 2  # cx и cy равны x0 и y0 соответственно
+
+    discriminant = b ** 2 - 4 * a * c
+
+    # Находим два значения t (временные параметры)
+    t1 = (-b + math.sqrt(discriminant)) / (2 * a)
+    t2 = (-b - math.sqrt(discriminant)) / (2 * a)
+
+    # Выбираем ближайшую точку пересечения (t > 0)
+    t = min(t for t in [t1, t2] if t > 0)
+
+    # Находим координаты точки пересечения
+    intersection_x = x0 + dx * t
+    intersection_y = y0 + dy * t
+
+    # Вычисляем угол наклона луча
+    angle = math.atan2(dy, dx)
+
+    return (intersection_x, intersection_y), angle
+
+
 class BallHitbox(pygame.sprite.Sprite):
     def __init__(self, size, pos=(0, 0), color=(255, 0, 0)):
         super().__init__()
         self.image = pygame.Surface([size, size], pygame.SRCALPHA)
         pygame.draw.ellipse(self.image, color, [0, 0, size, size], 1)
-        self.rect = self.image.get_rect()
-        self.rect.center = pos
-        self.radius = size // 2  # Устанавливаем радиус для проверки коллизии
+        self.radius = size / 2  # Устанавливаем радиус для проверки коллизии
         self.x, self.y = pos
 
     def draw(self):
         screen.blit(self.image, (self.x, self.y))
 
+    def animate(self, time):
+        ...
 
 class BackGround(pygame.sprite.Sprite):
     def __init__(self, image_file):
@@ -83,32 +125,60 @@ class SegmentRoad:
 
     def draw(self):
         self.image.draw()
-
+        self.hit_box.draw()
 
 class Bal:
     def __init__(self, x, y, hitbox, decor, road, velocity=None):
         if velocity is None:
-            velocity = [10, 0]
-        self.x, self.y = pos = x, y
+            velocity = [0, 0]
+        self.x, self.y = x, y
         self.velocity = velocity
         self.hit_box = hitbox
         self.decor = decor
         self.road = road
-
-        self.sum_vector = [0, 0]
-        self.g_vector = [270, 9.81]
-        self.reaction_vector = [0, 0]
-        self.round_vector = [0, 0]
+        self.coef = 1
+               #   Vx   Vy
+        self.V = [0.0, 0.0]
+               #   Fx   Fy
+        self.F = [0.0, 0.0]
+        self.Fg = [0.0, 0.0]
+        self.FN = [0.0, 0.0]
+        self.Ft = [0.0, 0.0]
 
     def draw(self):
         self.decor.draw()
         self.hit_box.draw()
 
     def animate(self, time):
-        self.decor.x += self.velocity[0]
-        self.decor.y += self.velocity[1]
-        self.hit_box.x += self.velocity[0]
-        self.hit_box.y += self.velocity[1]
+
+        if self.road.list_segments:
+            collide_segment = sorted(self.road.list_segments, key=lambda x: math.dist((x.hit_box.x + x.hit_box.radius, x.hit_box.y + x.hit_box.radius), (self.x + self.hit_box.radius, self.y + self.hit_box.radius)))[0]
+            if math.dist((collide_segment.hit_box.x + collide_segment.hit_box.radius, collide_segment.hit_box.y + collide_segment.hit_box.radius), (self.x + self.hit_box.radius, self.y + self.hit_box.radius)) <= self.hit_box.radius + collide_segment.hit_box.radius:
+                collide_point, a = find_ray_circle_intersection((collide_segment.hit_box.x + collide_segment.hit_box.radius, collide_segment.hit_box.y + collide_segment.hit_box.radius), (self.x + self.hit_box.radius, self.y + self.hit_box.radius), collide_segment.hit_box.radius)
+                dx = self.hit_box.radius * math.cos(a)
+                dy = self.hit_box.radius * math.sin(a)
+
+
+                new_point = (collide_point[0] + dx - self.hit_box.radius, collide_point[1] + dy - self.hit_box.radius)
+                self.x, self.y = new_point
+
+
+
+        self.F[0] = self.Fg[0] + self.FN[0] + self.Ft[0]
+        self.F[1] = self.Fg[1] + self.FN[1] + self.Ft[1]
+
+        self.V[0] += self.F[0]
+        self.V[1] += self.F[1]
+
+
+        self.x += self.V[0] * time / 1000
+        self.y += self.V[1] * time / 1000
+
+
+        self.hit_box.x = self.x
+        self.hit_box.y = self.y
+        self.decor.x = self.x
+        self.decor.y = self.y
 
 
 class Road:
@@ -116,7 +186,6 @@ class Road:
         self.list_segments = []
         self.decor = decor
         self.width = width_road
-        self.speed = 0
         self.vector_angle = 180
         self.end_line = False
         self.is_pressed = False
@@ -154,16 +223,10 @@ class Road:
             self.end_line = True
             self.is_pressed = True
 
-        angle = math.radians(self.vector_angle)
-        delta_x = time / 1000 * (self.speed * math.cos(angle))
-        delta_y = time / 1000 * (self.speed * math.sin(angle))
 
         # Обновляем позиции хитбоксов и текстур
         for segment in reversed(self.list_segments):
-            segment.hit_box.x += delta_x
-            segment.hit_box.y += delta_y
-            segment.image.x += delta_x
-            segment.image.y += delta_y
+
 
             if segment.hit_box.x < -self.width:
                 self.list_segments.remove(segment)  # Удаляем сегмент из списка
@@ -279,4 +342,8 @@ if __name__ == "__main__":
         dict_windows[active_window].update()
         pygame.display.flip()
 
-"""нет, используй другой подход. имея общий вектор мы можем рассчитать насколько изменится x и y у точки на конце вектора относительно нынешнего положения,.так как m мы берем равный 1, то сила равна ускорению, воспользуйся формулой для нахождения равнодействующей силы между двумя последовательно ее применяя к каждой из действующих сил. если ты все сделаешь правильно, то у тебя будет угол вектора общей силы а также ускорение по этому вектору, теперь нужно просто изменить x и y шара благодоря тригонометрии, узнаем насколько изменилось расстояние между прежними и новыми координатами зная сколько прошло времени между кадрами и ускорение, затем имея это расстояние а также угол вектора можно рассчитать насколько в отдельности изменился x и y, обновляем положение шара и пересчитываем общий вектор"""
+
+
+
+
+
