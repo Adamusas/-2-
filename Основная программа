@@ -5,7 +5,6 @@ import math
 from PIL import Image, ImageSequence
 
 
-
 def load_image(name, colorkey=None):
     fullname = os.path.join('data', name)
     # если файл не существует, то выходим
@@ -33,6 +32,130 @@ def save_frames(frames, name):
         count_frames = i
         frame.save(os.path.join('data', f'{name}_{i}.png'))
     return count_frames
+
+
+def calculate_new_velocity_and_angle(V0, theta0, F, thetaF, t):
+    """
+    Calculate the new velocity components, angle, and distance traveled in X and Y directions.
+
+    Parameters:
+    V0 (float): Initial velocity magnitude.
+    theta0 (float): Initial angle in radians.
+    F (float): Magnitude of the applied force.
+    thetaF (float): Angle of the applied force in radians.
+    t (float): Time duration over which the force is applied (in milliseconds).
+
+    Returns:
+    tuple: New velocity components (Vx, Vy), their magnitude and angle,
+           and distance traveled in X and Y directions (dx, dy).
+    """
+
+    # Calculate initial velocity components in Cartesian coordinates
+    V0x = V0 * math.cos(theta0)
+    V0y = V0 * math.sin(theta0)
+
+    # Calculate force components in Cartesian coordinates (assuming mass = 1)
+    Fx = F * math.cos(thetaF)
+    Fy = F * math.sin(thetaF)
+
+    # Update velocity components based on acceleration (force) over time
+    # Note: t is in milliseconds; convert to seconds for calculations
+    Vx = V0x + Fx * (t / 1000)
+    Vy = V0y + Fy * (t / 1000)
+
+    # Calculate new velocity magnitude and angle
+    new_velocity = math.sqrt(Vx ** 2 + Vy ** 2)
+    new_angle = math.atan2(Vy, Vx)  # Angle in radians
+
+    return new_angle, new_velocity
+
+
+def resultant_force(angle1, force1, angle2, force2):
+    """
+    Calculate the resultant force from two forces given their magnitudes and angles.
+
+    Parameters:
+    angle1 (float): Angle of the first force in radians.
+    force1 (float): Magnitude of the first force.
+    angle2 (float): Angle of the second force in radians.
+    force2 (float): Magnitude of the second force.
+
+    Returns:
+    tuple: Resultant angle in radians and magnitude of the resultant force.
+    """
+
+    # Разложение сил на компоненты
+    fx1 = force1 * math.cos(angle1)
+    fy1 = force1 * math.sin(angle1)
+
+    fx2 = force2 * math.cos(angle2)
+    fy2 = force2 * math.sin(angle2)
+
+    # Суммирование компонентов
+    fx_resultant = fx1 + fx2
+    fy_resultant = fy1 + fy2
+
+    # Вычисление результирующей силы и угла
+    resultant_magnitude = math.sqrt(fx_resultant ** 2 + fy_resultant ** 2)
+
+    # Проверка на нулевую результирующую силу
+    if resultant_magnitude == 0:
+        resultant_angle = None  # или любое другое значение по умолчанию
+    else:
+        resultant_angle = math.atan2(fy_resultant, fx_resultant)
+
+    return resultant_angle, resultant_magnitude
+
+
+def are_points_collinear(x1, y1, x2, y2, x3, y3):
+    """
+    Check if three points A, B, and C are collinear.
+
+    Parameters:
+    (x1, y1): Coordinates of point A.
+    (x2, y2): Coordinates of point B.
+    (x3, y3): Coordinates of point C.
+
+    Returns:
+    bool: True if the points are collinear, False otherwise.
+    """
+
+    # Вычисление площади треугольника
+    area = 0.5 * abs(x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
+
+    # Проверка на коллинеарность
+    return area == 0
+
+
+def find_circle_center(x1, y1, x2, y2, x3, y3):
+    """
+    Find the center of the circle that passes through three points A, B, and C.
+
+    Parameters:
+    (x1, y1): Coordinates of point A.
+    (x2, y2): Coordinates of point B.
+    (x3, y3): Coordinates of point C.
+
+    Returns:
+    (xc, yc): Coordinates of the center of the circle.
+    """
+
+    # Вычисление средних значений
+    D = 2 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
+
+    if D == 0:
+        raise ValueError("The points are collinear; no unique circle can be defined.")
+
+    # Вычисление координат центра окружности
+    xc = ((x1 ** 2 + y1 ** 2) * (y2 - y3) +
+          (x2 ** 2 + y2 ** 2) * (y3 - y1) +
+          (x3 ** 2 + y3 ** 2) * (y1 - y2)) / D
+
+    yc = ((x1 ** 2 + y1 ** 2) * (x3 - x2) +
+          (x2 ** 2 + y2 ** 2) * (x1 - x3) +
+          (x3 ** 2 + y3 ** 2) * (x2 - x1)) / D
+
+    return xc, yc
 
 
 def find_ray_circle_intersection(ray_origin, target_point, radius):
@@ -87,8 +210,6 @@ class BallHitbox(pygame.sprite.Sprite):
     def draw(self):
         screen.blit(self.image, (self.x, self.y))
 
-    def animate(self, time):
-        ...
 
 class BackGround(pygame.sprite.Sprite):
     def __init__(self, image_file):
@@ -127,23 +248,20 @@ class SegmentRoad:
         self.image.draw()
         self.hit_box.draw()
 
+
 class Bal:
-    def __init__(self, x, y, hitbox, decor, road, velocity=None):
+    def __init__(self, x, y, hitbox, decor, velocity=None):
         if velocity is None:
             velocity = [0, 0]
         self.x, self.y = x, y
         self.velocity = velocity
         self.hit_box = hitbox
         self.decor = decor
-        self.road = road
-        self.coef = 1
-               #   Vx   Vy
         self.V = [0.0, 0.0]
-               #   Fx   Fy
         self.F = [0.0, 0.0]
-        self.Fg = [0.0, 0.0]
-        self.FN = [0.0, 0.0]
-        self.Ft = [0.0, 0.0]
+        self.Fg = [math.radians(270), 100]
+        self.N = [0.0, 0.0]
+        self.Fr = [0.0, 0.0]
 
     def draw(self):
         self.decor.draw()
@@ -151,34 +269,56 @@ class Bal:
 
     def animate(self, time):
 
-        if self.road.list_segments:
-            collide_segment = sorted(self.road.list_segments, key=lambda x: math.dist((x.hit_box.x + x.hit_box.radius, x.hit_box.y + x.hit_box.radius), (self.x + self.hit_box.radius, self.y + self.hit_box.radius)))[0]
-            if math.dist((collide_segment.hit_box.x + collide_segment.hit_box.radius, collide_segment.hit_box.y + collide_segment.hit_box.radius), (self.x + self.hit_box.radius, self.y + self.hit_box.radius)) <= self.hit_box.radius + collide_segment.hit_box.radius:
-                collide_point, a = find_ray_circle_intersection((collide_segment.hit_box.x + collide_segment.hit_box.radius, collide_segment.hit_box.y + collide_segment.hit_box.radius), (self.x + self.hit_box.radius, self.y + self.hit_box.radius), collide_segment.hit_box.radius)
+        if r.list_segments:
+            collide_segment = sorted(r.list_segments, key=lambda x: math.dist(
+                (x.hit_box.x + x.hit_box.radius, x.hit_box.y + x.hit_box.radius),
+                (self.x + self.hit_box.radius, self.y + self.hit_box.radius)))[0]
+            if math.dist((collide_segment.hit_box.x + collide_segment.hit_box.radius,
+                          collide_segment.hit_box.y + collide_segment.hit_box.radius), (self.x + self.hit_box.radius,
+                                                                                        self.y + self.hit_box.radius)) <= self.hit_box.radius + collide_segment.hit_box.radius:
+                collide_point, a = find_ray_circle_intersection((
+                                                                collide_segment.hit_box.x + collide_segment.hit_box.radius,
+                                                                collide_segment.hit_box.y + collide_segment.hit_box.radius),
+                                                                (self.x + self.hit_box.radius,
+                                                                 self.y + self.hit_box.radius),
+                                                                collide_segment.hit_box.radius)
                 dx = self.hit_box.radius * math.cos(a)
                 dy = self.hit_box.radius * math.sin(a)
-
-
                 new_point = (collide_point[0] + dx - self.hit_box.radius, collide_point[1] + dy - self.hit_box.radius)
-                self.x, self.y = new_point
+                self.y = new_point[1]
 
+                for i in r.list_segments:
+                    i.hit_box.x -= new_point[0] - self.x
+                    i.image.x -= new_point[0] - self.x
+                R = self.V[1] ** 2
+                i = r.list_segments.index(collide_segment)
+                if i + 1 < len(r.list_segments) > 2:
+                    x1, y1 = r.list_segments[i - 1].hit_box.x, r.list_segments[i - 1].hit_box.y
+                    x2, y2 = r.list_segments[i].hit_box.x, r.list_segments[i].hit_box.y
+                    x3, y3 = r.list_segments[i + 1].hit_box.x, r.list_segments[i + 1].hit_box.y
+                    if not are_points_collinear(x1, y1, x2, y2, x3, y3):
+                        R = find_circle_center(x1, y1, x2, y2, x3, y3)
+                        R = math.dist((collide_segment.hit_box.x + collide_segment.hit_box.radius,
+                                       collide_segment.hit_box.y + collide_segment.hit_box.radius), R) - r.width
 
+                self.N[1] = self.F[1] * math.cos(a) + ((self.V[1] ** 2) / R)
 
-        self.F[0] = self.Fg[0] + self.FN[0] + self.Ft[0]
-        self.F[1] = self.Fg[1] + self.FN[1] + self.Ft[1]
+            else:
+                self.N[1] = 0.0
+                self.V = list(calculate_new_velocity_and_angle(self.V[1], self.V[0], self.F[1], self.F[0], time))
 
-        self.V[0] += self.F[0]
-        self.V[1] += self.F[1]
-
-
-        self.x += self.V[0] * time / 1000
-        self.y += self.V[1] * time / 1000
-
-
-        self.hit_box.x = self.x
-        self.hit_box.y = self.y
-        self.decor.x = self.x
-        self.decor.y = self.y
+        self.F = list(resultant_force(self.Fg[0], self.Fg[1], self.N[0], self.N[1]))
+        print(self.V)
+        vx = self.V[1] * math.cos(self.V[0])
+        vy = self.V[1] * math.sin(self.V[0])
+        dx = vx * time / 1000
+        dy = vy * time / 1000
+        self.y -= dy
+        self.hit_box.y, self.decor.y = self.y, self.y
+        if r.list_segments:
+            for i in r.list_segments:
+                i.hit_box.x -= dx
+                i.image.x -= dx
 
 
 class Road:
@@ -187,7 +327,7 @@ class Road:
         self.decor = decor
         self.width = width_road
         self.vector_angle = 180
-        self.end_line = False
+        self.end_line = True
         self.is_pressed = False
 
     def draw(self):
@@ -195,10 +335,11 @@ class Road:
             segment.draw()  # Отрисовываем каждый сегмент
 
     def animate(self, time):
+        pos = (pygame.mouse.get_pos()[0] - self.width / 2, pygame.mouse.get_pos()[1] - self.width / 2)
+
         # Обработка нажатия мыши
         if pygame.mouse.get_pressed()[0]:
 
-            pos = (pygame.mouse.get_pos()[0] - self.width / 2, pygame.mouse.get_pos()[1] - self.width / 2)
             if not self.list_segments: self.list_segments.append(
                 SegmentRoad(BallHitbox(self.width, pos), Decor(pos, self.decor)))
             if not self.list_segments or math.dist((self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y),
@@ -223,11 +364,8 @@ class Road:
             self.end_line = True
             self.is_pressed = True
 
-
         # Обновляем позиции хитбоксов и текстур
         for segment in reversed(self.list_segments):
-
-
             if segment.hit_box.x < -self.width:
                 self.list_segments.remove(segment)  # Удаляем сегмент из списка
 
@@ -319,11 +457,12 @@ if __name__ == "__main__":
 
 
     r = Road(10, pygame.transform.scale(load_image('yellowbal.png'), (10, 10)))
+    bal = Bal(300, 200, BallHitbox(100, (300, 200)),
+              Decor((300, 200), pygame.transform.scale(load_image('perpelbal.png'), (100, 100))))
 
     main_window = Window(
         [Button(100, 100, 200, 100, 'START', 50, (255, 0, 0), j, animation=True),
-         r, Bal(300, 200, BallHitbox(100, (300, 200)),
-                Decor((300, 200), pygame.transform.scale(load_image('perpelbal.png'), (100, 100))), r)],
+         r, bal],
         BackGround('mainmenu.gif'))
     active_window = 'main'
     dict_windows = {'main': main_window,
@@ -341,9 +480,3 @@ if __name__ == "__main__":
         # отрисовка и изменение свойств объектов
         dict_windows[active_window].update()
         pygame.display.flip()
-
-
-
-
-
-
