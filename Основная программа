@@ -1,11 +1,12 @@
-import pygame
+import math
 import os
 import sys
-import math
+
+import pygame
 from PIL import Image, ImageSequence
 
 
-def load_image(name, colorkey=None):
+def load_image(name):
     fullname = os.path.join('data', name)
     # если файл не существует, то выходим
     if not os.path.isfile(fullname):
@@ -35,21 +36,6 @@ def save_frames(frames, name):
 
 
 def calculate_new_velocity_and_angle(V0, theta0, F, thetaF, t):
-    """
-    Calculate the new velocity components, angle, and distance traveled in X and Y directions.
-
-    Parameters:
-    V0 (float): Initial velocity magnitude.
-    theta0 (float): Initial angle in radians.
-    F (float): Magnitude of the applied force.
-    thetaF (float): Angle of the applied force in radians.
-    t (float): Time duration over which the force is applied (in milliseconds).
-
-    Returns:
-    tuple: New velocity components (Vx, Vy), their magnitude and angle,
-           and distance traveled in X and Y directions (dx, dy).
-    """
-
     # Calculate initial velocity components in Cartesian coordinates
     V0x = V0 * math.cos(theta0)
     V0y = V0 * math.sin(theta0)
@@ -67,59 +53,10 @@ def calculate_new_velocity_and_angle(V0, theta0, F, thetaF, t):
     new_velocity = math.sqrt(Vx ** 2 + Vy ** 2)
     new_angle = math.atan2(Vy, Vx)  # Angle in radians
 
-    return new_angle, new_velocity
-
-
-def resultant_force(angle1, force1, angle2, force2):
-    """
-    Calculate the resultant force from two forces given their magnitudes and angles.
-
-    Parameters:
-    angle1 (float): Angle of the first force in radians.
-    force1 (float): Magnitude of the first force.
-    angle2 (float): Angle of the second force in radians.
-    force2 (float): Magnitude of the second force.
-
-    Returns:
-    tuple: Resultant angle in radians and magnitude of the resultant force.
-    """
-
-    # Разложение сил на компоненты
-    fx1 = force1 * math.cos(angle1)
-    fy1 = force1 * math.sin(angle1)
-
-    fx2 = force2 * math.cos(angle2)
-    fy2 = force2 * math.sin(angle2)
-
-    # Суммирование компонентов
-    fx_resultant = fx1 + fx2
-    fy_resultant = fy1 + fy2
-
-    # Вычисление результирующей силы и угла
-    resultant_magnitude = math.sqrt(fx_resultant ** 2 + fy_resultant ** 2)
-
-    # Проверка на нулевую результирующую силу
-    if resultant_magnitude == 0:
-        resultant_angle = None  # или любое другое значение по умолчанию
-    else:
-        resultant_angle = math.atan2(fy_resultant, fx_resultant)
-
-    return resultant_angle, resultant_magnitude
+    return [new_angle, new_velocity]
 
 
 def are_points_collinear(x1, y1, x2, y2, x3, y3):
-    """
-    Check if three points A, B, and C are collinear.
-
-    Parameters:
-    (x1, y1): Coordinates of point A.
-    (x2, y2): Coordinates of point B.
-    (x3, y3): Coordinates of point C.
-
-    Returns:
-    bool: True if the points are collinear, False otherwise.
-    """
-
     # Вычисление площади треугольника
     area = 0.5 * abs(x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
 
@@ -128,18 +65,6 @@ def are_points_collinear(x1, y1, x2, y2, x3, y3):
 
 
 def find_circle_center(x1, y1, x2, y2, x3, y3):
-    """
-    Find the center of the circle that passes through three points A, B, and C.
-
-    Parameters:
-    (x1, y1): Coordinates of point A.
-    (x2, y2): Coordinates of point B.
-    (x3, y3): Coordinates of point C.
-
-    Returns:
-    (xc, yc): Coordinates of the center of the circle.
-    """
-
     # Вычисление средних значений
     D = 2 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
 
@@ -208,7 +133,8 @@ class BallHitbox(pygame.sprite.Sprite):
         self.x, self.y = pos
 
     def draw(self):
-        screen.blit(self.image, (self.x, self.y))
+        # screen.blit(self.image, (self.x, self.y))
+        ...
 
 
 class BackGround(pygame.sprite.Sprite):
@@ -238,6 +164,9 @@ class Decor(pygame.sprite.Sprite):
     def draw(self):
         screen.blit(self.name, (self.x, self.y))
 
+    def animate(self, time):
+        ...
+
 
 class SegmentRoad:
     def __init__(self, hit_box, image_obj):
@@ -254,71 +183,88 @@ class Bal:
         if velocity is None:
             velocity = [0, 0]
         self.x, self.y = x, y
-        self.velocity = velocity
         self.hit_box = hitbox
         self.decor = decor
         self.V = [0.0, 0.0]
-        self.F = [0.0, 0.0]
-        self.Fg = [math.radians(270), 100]
-        self.N = [0.0, 0.0]
-        self.Fr = [0.0, 0.0]
+        self.g = [math.radians(270), 500]
+        self.omega = 0.0
+        self.score_ = 0
 
     def draw(self):
         self.decor.draw()
         self.hit_box.draw()
 
     def animate(self, time):
-
-        if r.list_segments:
-            collide_segment = sorted(r.list_segments, key=lambda x: math.dist(
+        if road.list_segments:
+            collide_segment = sorted(road.list_segments, key=lambda x: math.dist(
                 (x.hit_box.x + x.hit_box.radius, x.hit_box.y + x.hit_box.radius),
                 (self.x + self.hit_box.radius, self.y + self.hit_box.radius)))[0]
+
             if math.dist((collide_segment.hit_box.x + collide_segment.hit_box.radius,
                           collide_segment.hit_box.y + collide_segment.hit_box.radius), (self.x + self.hit_box.radius,
                                                                                         self.y + self.hit_box.radius)) <= self.hit_box.radius + collide_segment.hit_box.radius:
                 collide_point, a = find_ray_circle_intersection((
-                                                                collide_segment.hit_box.x + collide_segment.hit_box.radius,
-                                                                collide_segment.hit_box.y + collide_segment.hit_box.radius),
-                                                                (self.x + self.hit_box.radius,
-                                                                 self.y + self.hit_box.radius),
-                                                                collide_segment.hit_box.radius)
+                    collide_segment.hit_box.x + collide_segment.hit_box.radius,
+                    collide_segment.hit_box.y + collide_segment.hit_box.radius),
+                    (self.x + self.hit_box.radius,
+                     self.y + self.hit_box.radius),
+                    collide_segment.hit_box.radius)
                 dx = self.hit_box.radius * math.cos(a)
                 dy = self.hit_box.radius * math.sin(a)
                 new_point = (collide_point[0] + dx - self.hit_box.radius, collide_point[1] + dy - self.hit_box.radius)
                 self.y = new_point[1]
 
-                for i in r.list_segments:
+                for i in road.list_segments:
                     i.hit_box.x -= new_point[0] - self.x
                     i.image.x -= new_point[0] - self.x
-                R = self.V[1] ** 2
-                i = r.list_segments.index(collide_segment)
-                if i + 1 < len(r.list_segments) > 2:
-                    x1, y1 = r.list_segments[i - 1].hit_box.x, r.list_segments[i - 1].hit_box.y
-                    x2, y2 = r.list_segments[i].hit_box.x, r.list_segments[i].hit_box.y
-                    x3, y3 = r.list_segments[i + 1].hit_box.x, r.list_segments[i + 1].hit_box.y
+                R = self.V[1] ** 2 + 1
+                i = road.list_segments.index(collide_segment)
+                if i + 1 < len(road.list_segments) > 2:
+                    x1, y1 = road.list_segments[i - 1].hit_box.x, road.list_segments[i - 1].hit_box.y
+                    x2, y2 = road.list_segments[i].hit_box.x, road.list_segments[i].hit_box.y
+                    x3, y3 = road.list_segments[i + 1].hit_box.x, road.list_segments[i + 1].hit_box.y
                     if not are_points_collinear(x1, y1, x2, y2, x3, y3):
                         R = find_circle_center(x1, y1, x2, y2, x3, y3)
                         R = math.dist((collide_segment.hit_box.x + collide_segment.hit_box.radius,
-                                       collide_segment.hit_box.y + collide_segment.hit_box.radius), R) - r.width
+                                       collide_segment.hit_box.y + collide_segment.hit_box.radius), R) - road.width
+                # есть касание
+                a = abs(a - math.radians(90))
+                if collide_segment.hit_box.x + collide_segment.hit_box.radius < self.x + self.hit_box.radius:
+                    aR = a + math.radians(90)
+                else:
+                    aR = a - math.radians(270)
 
-                self.N[1] = self.F[1] * math.cos(a) + ((self.V[1] ** 2) / R)
+                Na = a  # угол нормальной силы
+                N = self.g[1] * math.cos(aR) + ((self.V[1] ** 2) / R)
+                self.V = calculate_new_velocity_and_angle(self.V[1], self.V[0], N, Na, time)
+                self.V[1] = self.V[1] * math.cos(aR)
+
+                usk = (5 * self.g[1] * math.cos(aR)) / (2 * self.hit_box.radius) * -1
+                self.omega += usk * time / 1000
+                vl = self.omega * self.hit_box.radius
+                self.V[1] += vl
+                self.V = calculate_new_velocity_and_angle(self.V[1], self.V[0], 80000, 0, time)
+
 
             else:
-                self.N[1] = 0.0
-                self.V = list(calculate_new_velocity_and_angle(self.V[1], self.V[0], self.F[1], self.F[0], time))
+                self.omega *= 1 - (0.5 * time / 1000)
+                self.V = calculate_new_velocity_and_angle(self.V[1], self.V[0], self.g[1], self.g[0], time)
 
-        self.F = list(resultant_force(self.Fg[0], self.Fg[1], self.N[0], self.N[1]))
-        print(self.V)
+        self.V[1] = abs(self.V[1])
         vx = self.V[1] * math.cos(self.V[0])
         vy = self.V[1] * math.sin(self.V[0])
         dx = vx * time / 1000
         dy = vy * time / 1000
         self.y -= dy
         self.hit_box.y, self.decor.y = self.y, self.y
-        if r.list_segments:
-            for i in r.list_segments:
+        if road.list_segments:
+            for i in road.list_segments:
                 i.hit_box.x -= dx
                 i.image.x -= dx
+
+        self.score_ += dx
+        score.text = str(int(self.score_))
+        if self.y > height + self.hit_box.radius: end_f()
 
 
 class Road:
@@ -326,7 +272,6 @@ class Road:
         self.list_segments = []
         self.decor = decor
         self.width = width_road
-        self.vector_angle = 180
         self.end_line = True
         self.is_pressed = False
 
@@ -336,33 +281,37 @@ class Road:
 
     def animate(self, time):
         pos = (pygame.mouse.get_pos()[0] - self.width / 2, pygame.mouse.get_pos()[1] - self.width / 2)
-
-        # Обработка нажатия мыши
-        if pygame.mouse.get_pressed()[0]:
-
-            if not self.list_segments: self.list_segments.append(
-                SegmentRoad(BallHitbox(self.width, pos), Decor(pos, self.decor)))
-            if not self.list_segments or math.dist((self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y),
-                                                   pos) >= self.width / 2:
-                last_segment_pos = (self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y)
-                self.list_segments.append(
+        if math.dist((pos[0] + self.width / 2, pos[1] + self.width / 2),
+                     (bal.x + bal.hit_box.radius, bal.y + bal.hit_box.radius)) > bal.hit_box.radius + self.width / 2:
+            # Обработка нажатия мыши
+            if pygame.mouse.get_pressed()[0]:
+                if not self.list_segments: self.list_segments.append(
                     SegmentRoad(BallHitbox(self.width, pos), Decor(pos, self.decor)))
-                if not self.end_line:
-                    distance = math.dist(last_segment_pos, pos)
-                    segment_count = int(distance // (self.width / 2))  # Определяем количество сегментов для добавления
-                    for i in range(1, segment_count + 1):
-                        new_pos = (
-                            last_segment_pos[0] + (pos[0] - last_segment_pos[0]) * (i / (segment_count + 1)),
-                            last_segment_pos[1] + (pos[1] - last_segment_pos[1]) * (i / (segment_count + 1))
-                        )
-                        self.list_segments.append(
-                            SegmentRoad(BallHitbox(self.width, new_pos), Decor(new_pos, self.decor))
-                        )
+                if not self.list_segments or math.dist(
+                        (self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y),
+                        pos) >= self.width / 2:
+                    last_segment_pos = (self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y)
+                    self.list_segments.append(
+                        SegmentRoad(BallHitbox(self.width, pos), Decor(pos, self.decor)))
+                    if not self.end_line:
+                        distance = math.dist(last_segment_pos, pos)
+                        segment_count = int(
+                            distance // (self.width / 2))  # Определяем количество сегментов для добавления
+                        for i in range(1, segment_count + 1):
+                            new_pos = (
+                                last_segment_pos[0] + (pos[0] - last_segment_pos[0]) * (i / (segment_count + 1)),
+                                last_segment_pos[1] + (pos[1] - last_segment_pos[1]) * (i / (segment_count + 1))
+                            )
+                            self.list_segments.append(
+                                SegmentRoad(BallHitbox(self.width, new_pos), Decor(new_pos, self.decor))
+                            )
+                    self.is_pressed = True
+                    self.end_line = False
+            elif self.is_pressed:
+                self.end_line = True
                 self.is_pressed = True
-                self.end_line = False
-        elif self.is_pressed:
+        else:
             self.end_line = True
-            self.is_pressed = True
 
         # Обновляем позиции хитбоксов и текстур
         for segment in reversed(self.list_segments):
@@ -399,7 +348,7 @@ class Button:
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if self.rect.collidepoint(event.pos):  # Проверяем нажатие на кнопку
                     self.flag_click = True
-                    self.action()
+
                     if self.animation:
                         if self.real_time == 0:
                             self.real_time += time
@@ -408,6 +357,8 @@ class Button:
         if self.flag_click:
             if event.type == pygame.MOUSEBUTTONUP:
                 self.flag_click = False
+                self.action()
+
         if self.real_time > 0:
             if self.real_time < self.time_first_part:
                 self.current_size = self.size_font - (self.size_font * 0.5 * (self.real_time / self.time_first_part))
@@ -422,7 +373,7 @@ class Button:
 
 
 class Window:
-    def __init__(self, list_objects: list, background: BackGround):
+    def __init__(self, list_objects: list, background):
         self.list_objects = list_objects
         self.background = background
         self.clock = pygame.time.Clock()
@@ -443,6 +394,165 @@ class Window:
         self.list_objects.remove(obj)
 
 
+def exit_game_f():
+    global running
+    running = False
+
+
+def start_f():
+    global active_window
+    active_window = 'game_window'
+    global game_window
+    game_window.list_objects[1].x, game_window.list_objects[1].y = width / 2 - 50, 200
+    game_window.list_objects[1].hit_box.x, game_window.list_objects[1].hit_box.y = width / 2 - 50, 200
+    game_window.list_objects[1].decor.x, game_window.list_objects[1].decor.y = width / 2 - 50, 200
+    game_window.list_objects[1].V = [0.0, 0.0]
+    game_window.list_objects[1].omega = 0.0
+    game_window.list_objects[1].score_ = 0
+    game_window.list_objects[2].list_segments = []
+
+
+def select_bal_f():
+    global active_window
+    active_window = 'select_bal_window'
+
+
+def select_background_f():
+    global active_window
+    active_window = 'select_background_window'
+
+
+def forward_bg_f():
+    global cbg
+    global list_backgrounds
+    cbg += 1
+    cbg %= len(list_backgrounds)
+    select_background_window.background = BackGround(list_backgrounds[cbg])
+    game_window.background = BackGround(list_backgrounds[cbg])
+
+
+def backward_bg_f():
+    global cbg
+    global list_backgrounds
+    cbg -= 1
+    if cbg < 0: cbg = len(list_backgrounds) - 1
+    select_background_window.background = BackGround(list_backgrounds[cbg])
+    game_window.background = BackGround(list_backgrounds[cbg])
+
+
+def settings_f():
+    global active_window
+    active_window = 'settings_window'
+
+
+def rules_f():
+    global active_window
+    active_window = 'rules_window'
+
+
+def about_f():
+    global active_window
+    active_window = "about_window"
+
+
+def end_f():
+    global active_window
+    active_window = 'main_window'
+    if int(''.join([i for i in best_score.text if i.isdigit()])) < int(
+        score.text): best_score.text = f'BEST SCORE: {score.text}'
+    global game_window
+    game_window.list_objects[1].x, game_window.list_objects[1].y = width / 2 - 50, 200
+    game_window.list_objects[1].hit_box.x, game_window.list_objects[1].hit_box.y = width / 2 - 50, 200
+    game_window.list_objects[1].decor.x, game_window.list_objects[1].decor.y = width / 2 - 50, 200
+    game_window.list_objects[1].V = [0.0, 0.0]
+    game_window.list_objects[1].omega = 0.0
+    game_window.list_objects[1].score_ = 0
+    game_window.list_objects[2].list_segments = []
+
+
+def back_f():
+    global active_window
+    active_window = "main_window"
+
+
+def forward_f():
+    global list_balls
+    global cb
+    global cr
+    global select_bal_window
+    cb += 1
+    cb %= len(list_balls)
+    game_window.list_objects[1].decor = Decor((width / 2 - 50, 200),
+                                              pygame.transform.scale(load_image(list_balls[cb]), (100, 100)))
+    select_bal_window.list_objects[0] = Decor((width / 2 - 50, 200),
+                                              pygame.transform.scale(load_image(list_balls[cb]), (100, 100)))
+
+
+def backward_f():
+    global list_balls
+    global cb
+    global cr
+    global select_bal_window
+    cb -= 1
+    if cb < 0: cb = len(list_balls) - 1
+    game_window.list_objects[1].decor = Decor((width / 2 - 50, 200),
+                                              pygame.transform.scale(load_image(list_balls[cb]), (100, 100)))
+    select_bal_window.list_objects[0] = Decor((width / 2 - 50, 200),
+                                              pygame.transform.scale(load_image(list_balls[cb]), (100, 100)))
+
+
+def forward__f():
+    global list_balls
+    global cb
+    global cr
+    global select_bal_window
+    cr += 1
+    cr %= len(list_balls)
+    game_window.list_objects[2].decor = pygame.transform.scale(load_image(list_balls[cr]), (50, 50))
+    select_bal_window.list_objects[4] = Decor((width / 2 - 25, 600),
+                                              pygame.transform.scale(load_image(list_balls[cr]), (50, 50)))
+
+
+def backward__f():
+    global list_balls
+    global cb
+    global cr
+    global select_bal_window
+    cr -= 1
+    if cr < 0: cr = len(list_balls) - 1
+    game_window.list_objects[2].decor = pygame.transform.scale(load_image(list_balls[cr]), (50, 50))
+    select_bal_window.list_objects[4] = Decor((width / 2 - 25, 600),
+                                              pygame.transform.scale(load_image(list_balls[cr]), (50, 50)))
+
+
+def fps_down_f():
+    global fps
+    fps -= 1
+    if fps < 1: fps = 1
+    global settings_window
+    settings_window.list_objects[3].text = str(fps)
+
+
+def fps_up_f():
+    global fps
+    fps += 1
+    settings_window.list_objects[3].text = str(fps)
+
+
+def sound_down_f():
+    global sound
+    sound -= 1
+    if sound < 0: sound = 0
+    settings_window.list_objects[6].text = str(sound)
+
+
+def sound_up_f():
+    global sound
+    sound += 1
+    if sound > 100: sound = 100
+    settings_window.list_objects[6].text = str(sound)
+
+
 if __name__ == "__main__":
     pygame.init()
     pygame.display.set_caption('Draw for Drive')
@@ -450,23 +560,73 @@ if __name__ == "__main__":
     screen = pygame.display.set_mode(size, pygame.NOFRAME)
     running = True
     fps = 60
+    sound = 100
+    list_backgrounds = ['backgroundanimate1.gif', 'backgroundanimate2.gif', 'backgroundanimate3.gif',
+                        'backgroundanimate4.gif']
+    cbg = 1
+    list_balls = ['yellowbal.png', 'perpelbal.png', 'blubal.png']
+    cb = 1
+    cr = 0
+    current_bal = Decor((width / 2 - 50, 200), pygame.transform.scale(load_image('perpelbal.png'), (100, 100)))
+    current_road = pygame.transform.scale(load_image('yellowbal.png'), (50, 50))
+    current_road_ = Decor((width / 2 - 25, 600), current_road)
 
+    road = Road(50, current_road)
+    bal = Bal(width / 2 - 50, 200, BallHitbox(100, (width / 2 - 50, 200)), current_bal)
 
-    def j():
-        print('j')
-
-
-    r = Road(10, pygame.transform.scale(load_image('yellowbal.png'), (10, 10)))
-    bal = Bal(300, 200, BallHitbox(100, (300, 200)),
-              Decor((300, 200), pygame.transform.scale(load_image('perpelbal.png'), (100, 100))))
-
-    main_window = Window(
-        [Button(100, 100, 200, 100, 'START', 50, (255, 0, 0), j, animation=True),
-         r, bal],
+    # main
+    best_score = Button(100, 50, 700, 50, '0', 20, (255, 0, 0), lambda: ..., animation=False)
+    exit_game = Button(width - 400, 50, 300, 100, 'EXIT', 50, (255, 0, 0), exit_game_f, animation=False)
+    start = Button(100, 150, 200, 100, 'START', 50, (255, 0, 0), start_f, animation=False)
+    select_bal = Button(100, 300, 400, 100, 'SELECT BAL', 50, (255, 0, 0), select_bal_f, animation=False)
+    select_background = Button(100, 450, 600, 100, 'SELECT BACKGROUND', 50, (255, 0, 0), select_background_f,
+                               animation=False)
+    settings = Button(100, 600, 300, 100, 'SETTINGS', 50, (255, 0, 0), settings_f, animation=False)
+    rules = Button(100, 750, 200, 100, 'RULES', 50, (255, 0, 0), rules_f, animation=False)
+    about = Button(100, 900, 500, 100, 'ABOUT THIS GAME', 50, (255, 0, 0), about_f, animation=False)
+    # game
+    end = Button(width - 400, 50, 300, 100, 'END GAME', 50, (255, 0, 0), end_f, animation=False)
+    score = Button(100, 50, 700, 50, '0', 20, (255, 0, 0), lambda: ..., animation=False)
+    # select
+    forward = Button(width - 400, 200, 300, 300, '>', 500, (255, 0, 0), forward_f, animation=True)
+    backward = Button(100, 200, 300, 300, '<', 500, (255, 0, 0), backward_f, animation=True)
+    forward_ = Button(width - 400, 600, 300, 300, '>', 500, (255, 0, 0), forward__f, animation=True)
+    backward_ = Button(100, 600, 300, 300, '<', 500, (255, 0, 0), backward__f, animation=True)
+    # select bg
+    forward_bg = Button(width - 400, 200, 300, 300, '>', 500, (255, 0, 0), forward_bg_f, animation=True)
+    backward_bg = Button(100, 200, 300, 300, '<', 500, (255, 0, 0), backward_bg_f, animation=True)
+    # settings
+    back = Button(width - 400, 50, 300, 100, 'BACK', 50, (255, 0, 0), back_f, animation=False)
+    fps_down = Button(100, height / 4 - 100, 200, 200, '-', 300, (255, 0, 0), fps_down_f, animation=True)
+    fps_up = Button(700, height / 4 - 100, 200, 200, '+', 300, (255, 0, 0), fps_up_f, animation=True)
+    fps_button = Button(350, height / 4 - 100, 300, 200, '60', 150, (255, 0, 0), lambda: ..., animation=False)
+    fps_text = Button(950, height / 4 - 100, 400, 200, 'FPS', 150, (255, 0, 0), lambda: ..., animation=False)
+    sound_down = Button(100, height * 3 / 4 - 100, 200, 200, '-', 300, (255, 0, 0), sound_down_f, animation=True)
+    sound_up = Button(700, height * 3 / 4 - 100, 200, 200, '+', 300, (255, 0, 0), sound_up_f, animation=True)
+    sound_button = Button(350, height * 3 / 4 - 100, 300, 200, '100', 150, (255, 0, 0), lambda: ..., animation=False)
+    sound_text = Button(950, height * 3 / 4 - 100, 600, 200, 'SOUND', 150, (255, 0, 0), lambda: ..., animation=False)
+    # windows
+    main_window = Window([exit_game, start, select_bal, select_background, settings, rules, about, best_score],
+                         BackGround('mainmenu.gif'))
+    game_window = Window([score, bal, road, end], BackGround('backgroundanimate2.gif'))
+    select_bal_window = Window([current_bal, forward, backward, back, current_road_, forward_, backward_],
+                               BackGround('mainmenubackgroundanimate.gif'))
+    select_background_window = Window([back, forward_bg, backward_bg], BackGround('backgroundanimate2.gif'))
+    settings_window = Window(
+        [back, fps_down, fps_up, fps_button, fps_text, sound_down, sound_button, sound_up, sound_text],
         BackGround('mainmenu.gif'))
-    active_window = 'main'
-    dict_windows = {'main': main_window,
-                    # 'select_your_car':
+    rules_window = Window([back], Decor((0, 0), pygame.transform.scale(load_image('rules.png'), size)))
+    about_window = Window([back], Decor((0, 0), pygame.transform.scale(load_image('pasport.png'), size)))
+
+    active_window = 'main_window'
+
+    dict_windows = {'main_window': main_window,
+                    'game_window': game_window,
+                    'select_bal_window': select_bal_window,
+                    'select_background_window': select_background_window,
+                    'settings_window': settings_window,
+                    'rules_window': rules_window,
+                    "about_window": about_window
                     }
     while running:
         # внутри игрового цикла ещё один цикл
