@@ -128,13 +128,12 @@ class BallHitbox(pygame.sprite.Sprite):
     def __init__(self, size, pos=(0, 0), color=(255, 0, 0)):
         super().__init__()
         self.image = pygame.Surface([size, size], pygame.SRCALPHA)
-        pygame.draw.ellipse(self.image, color, [0, 0, size, size], 1)
+        pygame.draw.ellipse(self.image, color, [0, 0, size, size])
         self.radius = size / 2  # Устанавливаем радиус для проверки коллизии
         self.x, self.y = pos
 
     def draw(self):
-        # screen.blit(self.image, (self.x, self.y))
-        ...
+        screen.blit(self.image, (self.x, self.y))
 
 
 class BackGround(pygame.sprite.Sprite):
@@ -175,7 +174,6 @@ class SegmentRoad:
 
     def draw(self):
         self.image.draw()
-        self.hit_box.draw()
 
 
 class Bal:
@@ -192,7 +190,6 @@ class Bal:
 
     def draw(self):
         self.decor.draw()
-        self.hit_box.draw()
 
     def animate(self, time):
         if road.list_segments:
@@ -262,9 +259,29 @@ class Bal:
                 i.hit_box.x -= dx
                 i.image.x -= dx
 
+        line.zap = 100 - self.score_ / 200
+
         self.score_ += dx
         score.text = str(int(self.score_))
         if self.y > height + self.hit_box.radius: end_f()
+
+
+class Line(pygame.sprite.Sprite):
+    def __init__(self, x, y, dlina):
+        super().__init__()
+        self.image = pygame.Surface([dlina, 30], pygame.SRCALPHA)
+        pygame.draw.rect(self.image, (255, 0, 0), [0, 0, dlina, 30])
+        self.x, self.y = x, y
+        self.dlina = dlina
+        self.zap = 100
+
+    def draw(self):
+        screen.blit(self.image, (self.x, self.y))
+
+    def animate(self, time):
+        self.dlina = (self.zap - len(road.list_segments)) * 400 / line.zap
+        self.image.fill((0, 0, 0))
+        pygame.draw.rect(self.image, (255, 0, 0), [0, 0, self.dlina, 30])
 
 
 class Road:
@@ -287,26 +304,27 @@ class Road:
             if pygame.mouse.get_pressed()[0]:
                 if not self.list_segments: self.list_segments.append(
                     SegmentRoad(BallHitbox(self.width, pos), Decor(pos, self.decor)))
-                if not self.list_segments or math.dist(
-                        (self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y),
-                        pos) >= self.width / 2:
-                    last_segment_pos = (self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y)
-                    self.list_segments.append(
-                        SegmentRoad(BallHitbox(self.width, pos), Decor(pos, self.decor)))
-                    if not self.end_line:
-                        distance = math.dist(last_segment_pos, pos)
-                        segment_count = int(
-                            distance // (self.width / 2))  # Определяем количество сегментов для добавления
-                        for i in range(1, segment_count + 1):
-                            new_pos = (
-                                last_segment_pos[0] + (pos[0] - last_segment_pos[0]) * (i / (segment_count + 1)),
-                                last_segment_pos[1] + (pos[1] - last_segment_pos[1]) * (i / (segment_count + 1))
-                            )
-                            self.list_segments.append(
-                                SegmentRoad(BallHitbox(self.width, new_pos), Decor(new_pos, self.decor))
-                            )
-                    self.is_pressed = True
-                    self.end_line = False
+                if len(self.list_segments) <= line.zap:
+                    if not self.list_segments or math.dist(
+                            (self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y),
+                            pos) >= self.width / 2:
+                        last_segment_pos = (self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y)
+                        self.list_segments.append(
+                            SegmentRoad(BallHitbox(self.width, pos), Decor(pos, self.decor)))
+                        if not self.end_line:
+                            distance = math.dist(last_segment_pos, pos)
+                            segment_count = int(
+                                distance // (self.width / 2))  # Определяем количество сегментов для добавления
+                            for i in range(1, segment_count + 1):
+                                new_pos = (
+                                    last_segment_pos[0] + (pos[0] - last_segment_pos[0]) * (i / (segment_count + 1)),
+                                    last_segment_pos[1] + (pos[1] - last_segment_pos[1]) * (i / (segment_count + 1))
+                                )
+                                self.list_segments.append(
+                                    SegmentRoad(BallHitbox(self.width, new_pos), Decor(new_pos, self.decor))
+                                )
+                        self.is_pressed = True
+                        self.end_line = False
             elif self.is_pressed:
                 self.end_line = True
                 self.is_pressed = True
@@ -315,7 +333,7 @@ class Road:
 
         # Обновляем позиции хитбоксов и текстур
         for segment in reversed(self.list_segments):
-            if segment.hit_box.x < -self.width:
+            if segment.hit_box.x < -self.width or segment.hit_box.x > width + self.width:
                 self.list_segments.remove(segment)  # Удаляем сегмент из списка
 
 
@@ -328,7 +346,7 @@ class Button:
         self.action = function
         self.flag_click = False
         self.size_font = size_font
-        self.font = pygame.font.SysFont('Arial', self.size_font)  # Шрифт для текста
+        self.font = pygame.font.Font(os.path.join('data', 'pixel_font.ttf'), self.size_font)  # Шрифт для текста
         self.current_color = list(color_main)
         self.current_size = size_font
         self.time_animation = 500
@@ -369,7 +387,7 @@ class Button:
             if self.real_time > self.time_animation:
                 self.real_time = 0
                 self.current_size = self.size_font
-            self.font = pygame.font.SysFont('Arial', int(self.current_size))
+            self.font = pygame.font.Font(os.path.join('data', 'pixel_font.ttf'), int(self.current_size))
 
 
 class Window:
@@ -398,6 +416,12 @@ def exit_game_f():
     global running
     running = False
 
+    with open('data.csv', mode='w', newline='', encoding='utf-8') as file:
+        file.write(f'cb={cb}\n')
+        file.write(f'cr={cr}\n')
+        file.write(f'cbg={cbg}\n')
+        file.write(f'best score={''.join([i for i in best_score.text if i.isdigit()])}\n')
+
 
 def start_f():
     global active_window
@@ -410,6 +434,8 @@ def start_f():
     game_window.list_objects[1].omega = 0.0
     game_window.list_objects[1].score_ = 0
     game_window.list_objects[2].list_segments = []
+    pygame.mixer.music.load(os.path.join('data', 'game_sound.mp3'))
+    pygame.mixer.music.play(-1)  # Бесконечное повторение
 
 
 def select_bal_f():
@@ -459,7 +485,7 @@ def end_f():
     global active_window
     active_window = 'main_window'
     if int(''.join([i for i in best_score.text if i.isdigit()])) < int(
-        score.text): best_score.text = f'BEST SCORE: {score.text}'
+            score.text): best_score.text = f'BEST SCORE: {score.text}'
     global game_window
     game_window.list_objects[1].x, game_window.list_objects[1].y = width / 2 - 50, 200
     game_window.list_objects[1].hit_box.x, game_window.list_objects[1].hit_box.y = width / 2 - 50, 200
@@ -469,10 +495,14 @@ def end_f():
     game_window.list_objects[1].score_ = 0
     game_window.list_objects[2].list_segments = []
 
+    pygame.mixer.music.load(os.path.join('data', 'back_sound.mp3'))
+    pygame.mixer.music.play(-1)  # Бесконечное повторение
+
 
 def back_f():
     global active_window
     active_window = "main_window"
+    global current_sound
 
 
 def forward_f():
@@ -544,6 +574,7 @@ def sound_down_f():
     sound -= 1
     if sound < 0: sound = 0
     settings_window.list_objects[6].text = str(sound)
+    pygame.mixer.music.set_volume(sound / 100)
 
 
 def sound_up_f():
@@ -551,6 +582,7 @@ def sound_up_f():
     sound += 1
     if sound > 100: sound = 100
     settings_window.list_objects[6].text = str(sound)
+    pygame.mixer.music.set_volume(sound / 100)
 
 
 if __name__ == "__main__":
@@ -561,54 +593,73 @@ if __name__ == "__main__":
     running = True
     fps = 60
     sound = 100
+
+    # Загрузка звукового эффекта
+    click_effect = pygame.mixer.Sound(os.path.join('data', 'click_sound.wav'))
+    click_effect.play()
+
+    # Загрузка фоновой музыки
+    pygame.mixer.music.load(os.path.join('data', 'back_sound.mp3'))
+    pygame.mixer.music.play(-1)  # Бесконечное повторение
+
+    # csv:
+    # cb
+    # cr
+    # cbg
+    # best score
+    with open('data.csv', mode='r', encoding='utf-8') as file:
+        lines = file.readlines()
+        cb = int(lines[0][3:-1])
+        cr = int(lines[1][3:-1])
+        cbg = int(lines[2][4:-1])
+        bsc = 'BEST SCORE: ' + lines[3][11:-1]
+
     list_backgrounds = ['backgroundanimate1.gif', 'backgroundanimate2.gif', 'backgroundanimate3.gif',
                         'backgroundanimate4.gif']
-    cbg = 1
     list_balls = ['yellowbal.png', 'perpelbal.png', 'blubal.png']
-    cb = 1
-    cr = 0
-    current_bal = Decor((width / 2 - 50, 200), pygame.transform.scale(load_image('perpelbal.png'), (100, 100)))
-    current_road = pygame.transform.scale(load_image('yellowbal.png'), (50, 50))
+
+    current_bal = Decor((width / 2 - 50, 200), pygame.transform.scale(load_image(list_balls[cb]), (100, 100)))
+    current_road = pygame.transform.scale(load_image(list_balls[cr]), (50, 50))
     current_road_ = Decor((width / 2 - 25, 600), current_road)
 
     road = Road(50, current_road)
     bal = Bal(width / 2 - 50, 200, BallHitbox(100, (width / 2 - 50, 200)), current_bal)
 
     # main
-    best_score = Button(100, 50, 700, 50, '0', 20, (255, 0, 0), lambda: ..., animation=False)
+    best_score = Button(100, 50, 700, 50, bsc, 20, (255, 0, 0), lambda: ..., animation=False)
     exit_game = Button(width - 400, 50, 300, 100, 'EXIT', 50, (255, 0, 0), exit_game_f, animation=False)
-    start = Button(100, 150, 200, 100, 'START', 50, (255, 0, 0), start_f, animation=False)
-    select_bal = Button(100, 300, 400, 100, 'SELECT BAL', 50, (255, 0, 0), select_bal_f, animation=False)
-    select_background = Button(100, 450, 600, 100, 'SELECT BACKGROUND', 50, (255, 0, 0), select_background_f,
+    start = Button(100, 150, 200, 100, 'START', 30, (255, 0, 0), start_f, animation=False)
+    select_bal = Button(100, 300, 400, 100, 'SELECT BAL', 30, (255, 0, 0), select_bal_f, animation=False)
+    select_background = Button(100, 450, 600, 100, 'SELECT BACKGROUND', 30, (255, 0, 0), select_background_f,
                                animation=False)
-    settings = Button(100, 600, 300, 100, 'SETTINGS', 50, (255, 0, 0), settings_f, animation=False)
-    rules = Button(100, 750, 200, 100, 'RULES', 50, (255, 0, 0), rules_f, animation=False)
-    about = Button(100, 900, 500, 100, 'ABOUT THIS GAME', 50, (255, 0, 0), about_f, animation=False)
+    settings = Button(100, 600, 300, 100, 'SETTINGS', 30, (255, 0, 0), settings_f, animation=False)
+    rules = Button(100, 750, 200, 100, 'RULES', 30, (255, 0, 0), rules_f, animation=False)
     # game
-    end = Button(width - 400, 50, 300, 100, 'END GAME', 50, (255, 0, 0), end_f, animation=False)
+    end = Button(width - 400, 50, 300, 100, 'END GAME', 25, (255, 0, 0), end_f, animation=False)
     score = Button(100, 50, 700, 50, '0', 20, (255, 0, 0), lambda: ..., animation=False)
+    line = Line(100, 130, 400)
     # select
-    forward = Button(width - 400, 200, 300, 300, '>', 500, (255, 0, 0), forward_f, animation=True)
-    backward = Button(100, 200, 300, 300, '<', 500, (255, 0, 0), backward_f, animation=True)
-    forward_ = Button(width - 400, 600, 300, 300, '>', 500, (255, 0, 0), forward__f, animation=True)
-    backward_ = Button(100, 600, 300, 300, '<', 500, (255, 0, 0), backward__f, animation=True)
+    forward = Button(width - 400, 200, 300, 300, '>', 250, (255, 0, 0), forward_f, animation=True)
+    backward = Button(100, 200, 300, 300, '<', 250, (255, 0, 0), backward_f, animation=True)
+    forward_ = Button(width - 400, 600, 300, 300, '>', 250, (255, 0, 0), forward__f, animation=True)
+    backward_ = Button(100, 600, 300, 300, '<', 250, (255, 0, 0), backward__f, animation=True)
     # select bg
-    forward_bg = Button(width - 400, 200, 300, 300, '>', 500, (255, 0, 0), forward_bg_f, animation=True)
-    backward_bg = Button(100, 200, 300, 300, '<', 500, (255, 0, 0), backward_bg_f, animation=True)
+    forward_bg = Button(width - 400, 200, 300, 300, '>', 250, (255, 0, 0), forward_bg_f, animation=True)
+    backward_bg = Button(100, 200, 300, 300, '<', 250, (255, 0, 0), backward_bg_f, animation=True)
     # settings
-    back = Button(width - 400, 50, 300, 100, 'BACK', 50, (255, 0, 0), back_f, animation=False)
-    fps_down = Button(100, height / 4 - 100, 200, 200, '-', 300, (255, 0, 0), fps_down_f, animation=True)
-    fps_up = Button(700, height / 4 - 100, 200, 200, '+', 300, (255, 0, 0), fps_up_f, animation=True)
-    fps_button = Button(350, height / 4 - 100, 300, 200, '60', 150, (255, 0, 0), lambda: ..., animation=False)
-    fps_text = Button(950, height / 4 - 100, 400, 200, 'FPS', 150, (255, 0, 0), lambda: ..., animation=False)
-    sound_down = Button(100, height * 3 / 4 - 100, 200, 200, '-', 300, (255, 0, 0), sound_down_f, animation=True)
-    sound_up = Button(700, height * 3 / 4 - 100, 200, 200, '+', 300, (255, 0, 0), sound_up_f, animation=True)
-    sound_button = Button(350, height * 3 / 4 - 100, 300, 200, '100', 150, (255, 0, 0), lambda: ..., animation=False)
-    sound_text = Button(950, height * 3 / 4 - 100, 600, 200, 'SOUND', 150, (255, 0, 0), lambda: ..., animation=False)
+    back = Button(width - 400, 50, 300, 100, 'BACK', 30, (255, 0, 0), back_f, animation=False)
+    fps_down = Button(100, height / 4 - 100, 200, 200, '-', 150, (255, 0, 0), fps_down_f, animation=True)
+    fps_up = Button(700, height / 4 - 100, 200, 200, '+', 150, (255, 0, 0), fps_up_f, animation=True)
+    fps_button = Button(350, height / 4 - 100, 300, 200, '60', 75, (255, 0, 0), lambda: ..., animation=False)
+    fps_text = Button(950, height / 4 - 100, 400, 200, 'FPS', 75, (255, 0, 0), lambda: ..., animation=False)
+    sound_down = Button(100, height * 3 / 4 - 100, 200, 200, '-', 150, (255, 0, 0), sound_down_f, animation=True)
+    sound_up = Button(700, height * 3 / 4 - 100, 200, 200, '+', 150, (255, 0, 0), sound_up_f, animation=True)
+    sound_button = Button(350, height * 3 / 4 - 100, 300, 200, '100', 75, (255, 0, 0), lambda: ..., animation=False)
+    sound_text = Button(950, height * 3 / 4 - 100, 600, 200, 'SOUND', 75, (255, 0, 0), lambda: ..., animation=False)
     # windows
-    main_window = Window([exit_game, start, select_bal, select_background, settings, rules, about, best_score],
+    main_window = Window([exit_game, start, select_bal, select_background, settings, rules, best_score],
                          BackGround('mainmenu.gif'))
-    game_window = Window([score, bal, road, end], BackGround('backgroundanimate2.gif'))
+    game_window = Window([score, bal, road, end, line], BackGround(list_backgrounds[cbg]))
     select_bal_window = Window([current_bal, forward, backward, back, current_road_, forward_, backward_],
                                BackGround('mainmenubackgroundanimate.gif'))
     select_background_window = Window([back, forward_bg, backward_bg], BackGround('backgroundanimate2.gif'))
@@ -616,7 +667,6 @@ if __name__ == "__main__":
         [back, fps_down, fps_up, fps_button, fps_text, sound_down, sound_button, sound_up, sound_text],
         BackGround('mainmenu.gif'))
     rules_window = Window([back], Decor((0, 0), pygame.transform.scale(load_image('rules.png'), size)))
-    about_window = Window([back], Decor((0, 0), pygame.transform.scale(load_image('pasport.png'), size)))
 
     active_window = 'main_window'
 
@@ -626,17 +676,13 @@ if __name__ == "__main__":
                     'select_background_window': select_background_window,
                     'settings_window': settings_window,
                     'rules_window': rules_window,
-                    "about_window": about_window
                     }
     while running:
-        # внутри игрового цикла ещё один цикл
-        # приёма и обработки сообщений
         for event in pygame.event.get():
-            # при закрытии окна
             if event.type == pygame.QUIT:
                 running = False
-                # РЕАКЦИЯ НА ОСТАЛЬНЫЕ СОБЫТИЯ
-            ...
-        # отрисовка и изменение свойств объектов
+            elif event.type == pygame.MOUSEBUTTONUP:
+                if event.button == 1:  # Левый клик
+                    click_effect.play()
         dict_windows[active_window].update()
         pygame.display.flip()
