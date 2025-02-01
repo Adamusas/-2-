@@ -1,6 +1,7 @@
 import math
 import os
 import sys
+from random import randint
 
 import pygame
 from PIL import Image, ImageSequence
@@ -35,23 +36,23 @@ def save_frames(frames, name):
     return count_frames
 
 
-def calculate_new_velocity_and_angle(V0, theta0, F, thetaF, t):
+def calculate_new_velocity_and_angle(v0, theta0, f, theta_f, t):
     # Calculate initial velocity components in Cartesian coordinates
-    V0x = V0 * math.cos(theta0)
-    V0y = V0 * math.sin(theta0)
+    v0x = v0 * math.cos(theta0)
+    v0y = v0 * math.sin(theta0)
 
     # Calculate force components in Cartesian coordinates (assuming mass = 1)
-    Fx = F * math.cos(thetaF)
-    Fy = F * math.sin(thetaF)
+    fx = f * math.cos(theta_f)
+    fy = f * math.sin(theta_f)
 
     # Update velocity components based on acceleration (force) over time
     # Note: t is in milliseconds; convert to seconds for calculations
-    Vx = V0x + Fx * (t / 1000)
-    Vy = V0y + Fy * (t / 1000)
+    vx = v0x + fx * (t / 1000)
+    vy = v0y + fy * (t / 1000)
 
     # Calculate new velocity magnitude and angle
-    new_velocity = math.sqrt(Vx ** 2 + Vy ** 2)
-    new_angle = math.atan2(Vy, Vx)  # Angle in radians
+    new_velocity = math.sqrt(vx ** 2 + vy ** 2)
+    new_angle = math.atan2(vy, vx)  # Angle in radians
 
     return [new_angle, new_velocity]
 
@@ -66,19 +67,19 @@ def are_points_collinear(x1, y1, x2, y2, x3, y3):
 
 def find_circle_center(x1, y1, x2, y2, x3, y3):
     # Вычисление средних значений
-    D = 2 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
+    d = 2 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
 
-    if D == 0:
+    if d == 0:
         raise ValueError("The points are collinear; no unique circle can be defined.")
 
     # Вычисление координат центра окружности
     xc = ((x1 ** 2 + y1 ** 2) * (y2 - y3) +
           (x2 ** 2 + y2 ** 2) * (y3 - y1) +
-          (x3 ** 2 + y3 ** 2) * (y1 - y2)) / D
+          (x3 ** 2 + y3 ** 2) * (y1 - y2)) / d
 
     yc = ((x1 ** 2 + y1 ** 2) * (x3 - x2) +
           (x2 ** 2 + y2 ** 2) * (x1 - x3) +
-          (x3 ** 2 + y3 ** 2) * (x2 - x1)) / D
+          (x3 ** 2 + y3 ** 2) * (x2 - x1)) / d
 
     return xc, yc
 
@@ -125,11 +126,11 @@ def find_ray_circle_intersection(ray_origin, target_point, radius):
 
 
 class BallHitbox(pygame.sprite.Sprite):
-    def __init__(self, size, pos=(0, 0), color=(255, 0, 0)):
+    def __init__(self, size_hit_box, pos=(0, 0), color=(255, 0, 0)):
         super().__init__()
-        self.image = pygame.Surface([size, size], pygame.SRCALPHA)
-        pygame.draw.ellipse(self.image, color, [0, 0, size, size])
-        self.radius = size / 2  # Устанавливаем радиус для проверки коллизии
+        self.image = pygame.Surface([size_hit_box, size_hit_box], pygame.SRCALPHA)
+        pygame.draw.ellipse(self.image, color, [0, 0, size_hit_box, size_hit_box])
+        self.radius = size_hit_box / 2  # Устанавливаем радиус для проверки коллизии
         self.x, self.y = pos
 
     def draw(self):
@@ -177,13 +178,11 @@ class SegmentRoad:
 
 
 class Bal:
-    def __init__(self, x, y, hitbox, decor, velocity=None):
-        if velocity is None:
-            velocity = [0, 0]
+    def __init__(self, x, y, hitbox, decor):
         self.x, self.y = x, y
         self.hit_box = hitbox
         self.decor = decor
-        self.V = [0.0, 0.0]
+        self.v = [0.0, 0.0]
         self.g = [math.radians(270), 500]
         self.omega = 0.0
         self.score_ = 0
@@ -214,42 +213,42 @@ class Bal:
                 for i in road.list_segments:
                     i.hit_box.x -= new_point[0] - self.x
                     i.image.x -= new_point[0] - self.x
-                R = self.V[1] ** 2 + 1
+                r = self.v[1] ** 2 + 1
                 i = road.list_segments.index(collide_segment)
                 if i + 1 < len(road.list_segments) > 2:
                     x1, y1 = road.list_segments[i - 1].hit_box.x, road.list_segments[i - 1].hit_box.y
                     x2, y2 = road.list_segments[i].hit_box.x, road.list_segments[i].hit_box.y
                     x3, y3 = road.list_segments[i + 1].hit_box.x, road.list_segments[i + 1].hit_box.y
                     if not are_points_collinear(x1, y1, x2, y2, x3, y3):
-                        R = find_circle_center(x1, y1, x2, y2, x3, y3)
-                        R = math.dist((collide_segment.hit_box.x + collide_segment.hit_box.radius,
-                                       collide_segment.hit_box.y + collide_segment.hit_box.radius), R) - road.width
+                        r = find_circle_center(x1, y1, x2, y2, x3, y3)
+                        r = math.dist((collide_segment.hit_box.x + collide_segment.hit_box.radius,
+                                       collide_segment.hit_box.y + collide_segment.hit_box.radius), r) - road.width
                 # есть касание
                 a = abs(a - math.radians(90))
                 if collide_segment.hit_box.x + collide_segment.hit_box.radius < self.x + self.hit_box.radius:
-                    aR = a + math.radians(90)
+                    a_r = a + math.radians(90)
                 else:
-                    aR = a - math.radians(270)
+                    a_r = a - math.radians(270)
 
-                Na = a  # угол нормальной силы
-                N = self.g[1] * math.cos(aR) + ((self.V[1] ** 2) / R)
-                self.V = calculate_new_velocity_and_angle(self.V[1], self.V[0], N, Na, time)
-                self.V[1] = self.V[1] * math.cos(aR)
+                na = a  # угол нормальной силы
+                n = self.g[1] * math.cos(a_r) + ((self.v[1] ** 2) / r)
+                self.v = calculate_new_velocity_and_angle(self.v[1], self.v[0], n, na, time)
+                self.v[1] = self.v[1] * math.cos(a_r)
 
-                usk = (5 * self.g[1] * math.cos(aR)) / (2 * self.hit_box.radius) * -1
+                usk = (5 * self.g[1] * math.cos(a_r)) / (2 * self.hit_box.radius) * -1
                 self.omega += usk * time / 1000
                 vl = self.omega * self.hit_box.radius
-                self.V[1] += vl
-                self.V = calculate_new_velocity_and_angle(self.V[1], self.V[0], 80000, 0, time)
+                self.v[1] += vl
+                self.v = calculate_new_velocity_and_angle(self.v[1], self.v[0], 80000, 0, time)
 
 
             else:
                 self.omega *= 1 - (0.5 * time / 1000)
-                self.V = calculate_new_velocity_and_angle(self.V[1], self.V[0], self.g[1], self.g[0], time)
+                self.v = calculate_new_velocity_and_angle(self.v[1], self.v[0], self.g[1], self.g[0], time)
 
-        self.V[1] = abs(self.V[1])
-        vx = self.V[1] * math.cos(self.V[0])
-        vy = self.V[1] * math.sin(self.V[0])
+        self.v[1] = abs(self.v[1])
+        vx = self.v[1] * math.cos(self.v[0])
+        vy = self.v[1] * math.sin(self.v[0])
         dx = vx * time / 1000
         dy = vy * time / 1000
         self.y -= dy
@@ -259,29 +258,12 @@ class Bal:
                 i.hit_box.x -= dx
                 i.image.x -= dx
 
-        line.zap = 100 - self.score_ / 200
-
         self.score_ += dx
         score.text = str(int(self.score_))
-        if self.y > height + self.hit_box.radius: end_f()
-
-
-class Line(pygame.sprite.Sprite):
-    def __init__(self, x, y, dlina):
-        super().__init__()
-        self.image = pygame.Surface([dlina, 30], pygame.SRCALPHA)
-        pygame.draw.rect(self.image, (255, 0, 0), [0, 0, dlina, 30])
-        self.x, self.y = x, y
-        self.dlina = dlina
-        self.zap = 100
-
-    def draw(self):
-        screen.blit(self.image, (self.x, self.y))
-
-    def animate(self, time):
-        self.dlina = (self.zap - len(road.list_segments)) * 400 / line.zap
-        self.image.fill((0, 0, 0))
-        pygame.draw.rect(self.image, (255, 0, 0), [0, 0, self.dlina, 30])
+        if self.y > height + self.hit_box.radius:
+            end_f()
+        elif self.y + self.hit_box.radius + road.width < 0:
+            self.v = math.radians(315), 100
 
 
 class Road:
@@ -304,27 +286,26 @@ class Road:
             if pygame.mouse.get_pressed()[0]:
                 if not self.list_segments: self.list_segments.append(
                     SegmentRoad(BallHitbox(self.width, pos), Decor(pos, self.decor)))
-                if len(self.list_segments) <= line.zap:
-                    if not self.list_segments or math.dist(
-                            (self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y),
-                            pos) >= self.width / 2:
-                        last_segment_pos = (self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y)
-                        self.list_segments.append(
-                            SegmentRoad(BallHitbox(self.width, pos), Decor(pos, self.decor)))
-                        if not self.end_line:
-                            distance = math.dist(last_segment_pos, pos)
-                            segment_count = int(
-                                distance // (self.width / 2))  # Определяем количество сегментов для добавления
-                            for i in range(1, segment_count + 1):
-                                new_pos = (
-                                    last_segment_pos[0] + (pos[0] - last_segment_pos[0]) * (i / (segment_count + 1)),
-                                    last_segment_pos[1] + (pos[1] - last_segment_pos[1]) * (i / (segment_count + 1))
-                                )
-                                self.list_segments.append(
-                                    SegmentRoad(BallHitbox(self.width, new_pos), Decor(new_pos, self.decor))
-                                )
-                        self.is_pressed = True
-                        self.end_line = False
+                if not self.list_segments or math.dist(
+                        (self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y),
+                        pos) >= self.width / 2:
+                    last_segment_pos = (self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y)
+                    self.list_segments.append(
+                        SegmentRoad(BallHitbox(self.width, pos), Decor(pos, self.decor)))
+                    if not self.end_line:
+                        distance = math.dist(last_segment_pos, pos)
+                        segment_count = int(
+                            distance // (self.width / 2))  # Определяем количество сегментов для добавления
+                        for i in range(1, segment_count + 1):
+                            new_pos = (
+                                last_segment_pos[0] + (pos[0] - last_segment_pos[0]) * (i / (segment_count + 1)),
+                                last_segment_pos[1] + (pos[1] - last_segment_pos[1]) * (i / (segment_count + 1))
+                            )
+                            self.list_segments.append(
+                                SegmentRoad(BallHitbox(self.width, new_pos), Decor(new_pos, self.decor))
+                            )
+                    self.is_pressed = True
+                    self.end_line = False
             elif self.is_pressed:
                 self.end_line = True
                 self.is_pressed = True
@@ -390,6 +371,49 @@ class Button:
             self.font = pygame.font.Font(os.path.join('data', 'pixel_font.ttf'), int(self.current_size))
 
 
+class Monster:
+    def __init__(self, hit_box, image_obj, speed):
+        self.image = image_obj
+        self.hit_box = hit_box
+        self.speed = speed
+
+    def draw(self):
+        self.image.draw()
+
+    def animate(self, time):
+        self.image.x -= self.speed * time / 1000
+        self.hit_box.x -= self.speed * time / 1000
+
+
+class Monsters:
+    def __init__(self, decor, width_monster):
+        self.list_monsters = []
+        self.decor = decor
+        self.sum_time = 0
+        self.period = randint(4000, 7000)
+        self.width_monster = width_monster
+
+    def draw(self):
+        for i in self.list_monsters:
+            i.draw()
+
+    def animate(self, time):
+        self.sum_time += time
+        if self.sum_time >= self.period:
+            self.period = randint(int(self.period * 0.7), int(self.period * 0.7) + 1000)
+            self.sum_time = 0
+            pos = (width + 75, randint(0, height - 75))
+            self.list_monsters.append(
+                Monster(BallHitbox(self.width_monster, pos), Decor(pos, self.decor), randint(0, 1000)))
+        for i in reversed(self.list_monsters):
+            i.animate(time)
+            if math.dist((i.hit_box.x + i.hit_box.radius, i.hit_box.y + i.hit_box.radius), (
+                    bal.x + bal.hit_box.radius, bal.y + bal.hit_box.radius)) <= bal.hit_box.radius + i.hit_box.radius:
+                end_f()
+            if i.hit_box.x < -self.width_monster:
+                self.list_monsters.remove(i)
+
+
 class Window:
     def __init__(self, list_objects: list, background):
         self.list_objects = list_objects
@@ -416,11 +440,11 @@ def exit_game_f():
     global running
     running = False
 
-    with open('data.csv', mode='w', newline='', encoding='utf-8') as file:
-        file.write(f'cb={cb}\n')
-        file.write(f'cr={cr}\n')
-        file.write(f'cbg={cbg}\n')
-        file.write(f'best score={''.join([i for i in best_score.text if i.isdigit()])}\n')
+    with open('data.csv', mode='w', newline='', encoding='utf-8') as data:
+        data.write(f'cb={cb}\n')
+        data.write(f'cr={cr}\n')
+        data.write(f'cbg={cbg}\n')
+        data.write(f'best score={''.join([i for i in best_score.text if i.isdigit()])}\n')
 
 
 def start_f():
@@ -430,7 +454,7 @@ def start_f():
     game_window.list_objects[1].x, game_window.list_objects[1].y = width / 2 - 50, 200
     game_window.list_objects[1].hit_box.x, game_window.list_objects[1].hit_box.y = width / 2 - 50, 200
     game_window.list_objects[1].decor.x, game_window.list_objects[1].decor.y = width / 2 - 50, 200
-    game_window.list_objects[1].V = [0.0, 0.0]
+    game_window.list_objects[1].v = [0.0, 0.0]
     game_window.list_objects[1].omega = 0.0
     game_window.list_objects[1].score_ = 0
     game_window.list_objects[2].list_segments = []
@@ -490,10 +514,11 @@ def end_f():
     game_window.list_objects[1].x, game_window.list_objects[1].y = width / 2 - 50, 200
     game_window.list_objects[1].hit_box.x, game_window.list_objects[1].hit_box.y = width / 2 - 50, 200
     game_window.list_objects[1].decor.x, game_window.list_objects[1].decor.y = width / 2 - 50, 200
-    game_window.list_objects[1].V = [0.0, 0.0]
+    game_window.list_objects[1].v = [0.0, 0.0]
     game_window.list_objects[1].omega = 0.0
     game_window.list_objects[1].score_ = 0
     game_window.list_objects[2].list_segments = []
+    game_window.list_objects[3] = Monsters(pygame.transform.scale(load_image('monster.png'), (75, 75)), 75)
 
     pygame.mixer.music.load(os.path.join('data', 'back_sound.mp3'))
     pygame.mixer.music.play(-1)  # Бесконечное повторение
@@ -502,7 +527,6 @@ def end_f():
 def back_f():
     global active_window
     active_window = "main_window"
-    global current_sound
 
 
 def forward_f():
@@ -591,7 +615,7 @@ if __name__ == "__main__":
     size = width, height = pygame.display.Info().current_w, pygame.display.Info().current_h
     screen = pygame.display.set_mode(size, pygame.NOFRAME)
     running = True
-    fps = 60
+    fps = 100
     sound = 100
 
     # Загрузка звукового эффекта
@@ -624,12 +648,13 @@ if __name__ == "__main__":
 
     road = Road(50, current_road)
     bal = Bal(width / 2 - 50, 200, BallHitbox(100, (width / 2 - 50, 200)), current_bal)
+    monsters = Monsters(pygame.transform.scale(load_image('monster.png'), (75, 75)), 75)
 
     # main
     best_score = Button(100, 50, 700, 50, bsc, 20, (255, 0, 0), lambda: ..., animation=False)
     exit_game = Button(width - 400, 50, 300, 100, 'EXIT', 50, (255, 0, 0), exit_game_f, animation=False)
     start = Button(100, 150, 200, 100, 'START', 30, (255, 0, 0), start_f, animation=False)
-    select_bal = Button(100, 300, 400, 100, 'SELECT BAL', 30, (255, 0, 0), select_bal_f, animation=False)
+    select_bal = Button(100, 300, 400, 100, 'SELECT BALL', 30, (255, 0, 0), select_bal_f, animation=False)
     select_background = Button(100, 450, 600, 100, 'SELECT BACKGROUND', 30, (255, 0, 0), select_background_f,
                                animation=False)
     settings = Button(100, 600, 300, 100, 'SETTINGS', 30, (255, 0, 0), settings_f, animation=False)
@@ -637,7 +662,6 @@ if __name__ == "__main__":
     # game
     end = Button(width - 400, 50, 300, 100, 'END GAME', 25, (255, 0, 0), end_f, animation=False)
     score = Button(100, 50, 700, 50, '0', 20, (255, 0, 0), lambda: ..., animation=False)
-    line = Line(100, 130, 400)
     # select
     forward = Button(width - 400, 200, 300, 300, '>', 250, (255, 0, 0), forward_f, animation=True)
     backward = Button(100, 200, 300, 300, '<', 250, (255, 0, 0), backward_f, animation=True)
@@ -659,7 +683,7 @@ if __name__ == "__main__":
     # windows
     main_window = Window([exit_game, start, select_bal, select_background, settings, rules, best_score],
                          BackGround('mainmenu.gif'))
-    game_window = Window([score, bal, road, end, line], BackGround(list_backgrounds[cbg]))
+    game_window = Window([score, bal, road, monsters, end], BackGround(list_backgrounds[cbg]))
     select_bal_window = Window([current_bal, forward, backward, back, current_road_, forward_, backward_],
                                BackGround('mainmenubackgroundanimate.gif'))
     select_background_window = Window([back, forward_bg, backward_bg], BackGround('backgroundanimate2.gif'))
