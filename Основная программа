@@ -36,23 +36,19 @@ def save_frames(frames, name):
     return count_frames
 
 
-def calculate_new_velocity_and_angle(v0, theta0, f, theta_f, t):
-    # Calculate initial velocity components in Cartesian coordinates
+def calculate_new_velocity_and_angle(v0, theta0, f, theta_f,
+                                     t):  # Принимает текущую скорость и направление материальной точки и силу действующую на нее, рассчитывает новую скорость и направление
     v0x = v0 * math.cos(theta0)
     v0y = v0 * math.sin(theta0)
 
-    # Calculate force components in Cartesian coordinates (assuming mass = 1)
     fx = f * math.cos(theta_f)
     fy = f * math.sin(theta_f)
 
-    # Update velocity components based on acceleration (force) over time
-    # Note: t is in milliseconds; convert to seconds for calculations
     vx = v0x + fx * (t / 1000)
     vy = v0y + fy * (t / 1000)
 
-    # Calculate new velocity magnitude and angle
     new_velocity = math.sqrt(vx ** 2 + vy ** 2)
-    new_angle = math.atan2(vy, vx)  # Angle in radians
+    new_angle = math.atan2(vy, vx)
 
     return [new_angle, new_velocity]
 
@@ -65,12 +61,9 @@ def are_points_collinear(x1, y1, x2, y2, x3, y3):
     return area == 0
 
 
-def find_circle_center(x1, y1, x2, y2, x3, y3):
+def find_circle_center(x1, y1, x2, y2, x3, y3):  # Находит центр окружности по трем точкам
     # Вычисление средних значений
     d = 2 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
-
-    if d == 0:
-        raise ValueError("The points are collinear; no unique circle can be defined.")
 
     # Вычисление координат центра окружности
     xc = ((x1 ** 2 + y1 ** 2) * (y2 - y3) +
@@ -84,7 +77,8 @@ def find_circle_center(x1, y1, x2, y2, x3, y3):
     return xc, yc
 
 
-def find_ray_circle_intersection(ray_origin, target_point, radius):
+def find_ray_circle_intersection(ray_origin, target_point,
+                                 radius):  # Находит точку касания двух окружностей при коллизии, а для удобства еще возвращает угол под которым эта точка лежит 
     # Распаковка координат
     x0, y0 = ray_origin  # Центр окружности (начало луча)
     x1, y1 = target_point  # Произвольная точка
@@ -191,28 +185,31 @@ class Bal:
         self.decor.draw()
 
     def animate(self, time):
-        if road.list_segments:
+        if road.list_segments:  # Дорога должная существовать
             collide_segment = sorted(road.list_segments, key=lambda x: math.dist(
                 (x.hit_box.x + x.hit_box.radius, x.hit_box.y + x.hit_box.radius),
-                (self.x + self.hit_box.radius, self.y + self.hit_box.radius)))[0]
+                (self.x + self.hit_box.radius, self.y + self.hit_box.radius)))[
+                0]  # Находим ближайший сегмент дороги для проверки коллизии, дабы оптимизировать процесс
 
             if math.dist((collide_segment.hit_box.x + collide_segment.hit_box.radius,
                           collide_segment.hit_box.y + collide_segment.hit_box.radius), (self.x + self.hit_box.radius,
-                                                                                        self.y + self.hit_box.radius)) <= self.hit_box.radius + collide_segment.hit_box.radius:
+                                                                                        self.y + self.hit_box.radius)) <= self.hit_box.radius + collide_segment.hit_box.radius:  # Проверка коллизии
                 collide_point, a = find_ray_circle_intersection((
                     collide_segment.hit_box.x + collide_segment.hit_box.radius,
                     collide_segment.hit_box.y + collide_segment.hit_box.radius),
                     (self.x + self.hit_box.radius,
                      self.y + self.hit_box.radius),
-                    collide_segment.hit_box.radius)
+                    collide_segment.hit_box.radius)  # Находим точку касания для перемещения основного шара на нужные координаты
                 dx = self.hit_box.radius * math.cos(a)
                 dy = self.hit_box.radius * math.sin(a)
                 new_point = (collide_point[0] + dx - self.hit_box.radius, collide_point[1] + dy - self.hit_box.radius)
                 self.y = new_point[1]
-
+                # Переносим на нужные координаты
                 for i in road.list_segments:
                     i.hit_box.x -= new_point[0] - self.x
                     i.image.x -= new_point[0] - self.x
+
+                    # Находим радиус окружности кривизны дороги для расчета центростремительной силы и включения ее в нормальную силу
                 r = self.v[1] ** 2 + 1
                 i = road.list_segments.index(collide_segment)
                 if i + 1 < len(road.list_segments) > 2:
@@ -223,30 +220,42 @@ class Bal:
                         r = find_circle_center(x1, y1, x2, y2, x3, y3)
                         r = math.dist((collide_segment.hit_box.x + collide_segment.hit_box.radius,
                                        collide_segment.hit_box.y + collide_segment.hit_box.radius), r) - road.width
-                # есть касание
+
+                # Есть касание
                 a = abs(a - math.radians(90))
+                # Расчет угла наклона дороги(касательной к ней)
                 if collide_segment.hit_box.x + collide_segment.hit_box.radius < self.x + self.hit_box.radius:
                     a_r = a + math.radians(90)
                 else:
                     a_r = a - math.radians(270)
 
                 na = a  # угол нормальной силы
-                n = self.g[1] * math.cos(a_r) + ((self.v[1] ** 2) / r)
-                self.v = calculate_new_velocity_and_angle(self.v[1], self.v[0], n, na, time)
-                self.v[1] = self.v[1] * math.cos(a_r)
+                n = self.g[1] * math.cos(a_r) + ((self.v[1] ** 2) / r)  # Находим нормальную силу
+                self.v = calculate_new_velocity_and_angle(self.v[1], self.v[0], n, na,
+                                                          time)  # Включаем ее в скорость шара
+                self.v[1] *= math.cos(a_r)  # При движении по наклонной скорость изменяется следующим образом
 
+                # Рассчитываем влияние качения шарика на его скорость
                 usk = (5 * self.g[1] * math.cos(a_r)) / (2 * self.hit_box.radius) * -1
                 self.omega += usk * time / 1000
                 vl = self.omega * self.hit_box.radius
+
                 self.v[1] += vl
-                self.v = calculate_new_velocity_and_angle(self.v[1], self.v[0], 80000, 0, time)
+                self.v = calculate_new_velocity_and_angle(self.v[1], self.v[0], 80000, 0,
+                                                          time)  # Шарик сам по себе крутится по этому прибавляем к его скорости еще одну силу
 
 
             else:
-                self.omega *= 1 - (0.5 * time / 1000)
-                self.v = calculate_new_velocity_and_angle(self.v[1], self.v[0], self.g[1], self.g[0], time)
+                # Нет касания
+                self.omega *= 1 - (
+                            0.5 * time / 1000)  # Предположим, что скорость вращения шарика уменьшается если тот на катится
+                self.v = calculate_new_velocity_and_angle(self.v[1], self.v[0], self.g[1], self.g[0],
+                                                          time)  # Прибавляем силу тяготения, в случае касания ее мы не прибавляли ведь она уже была учтена в нормальной силе
 
-        self.v[1] = abs(self.v[1])
+        self.v[1] = abs(
+            self.v[1])  # Скорость должна быть положительной, а изменение направления происходит из-за изменения угла
+
+        # Рассчитываем изменения положения шарика зная время, скорость и направление
         vx = self.v[1] * math.cos(self.v[0])
         vy = self.v[1] * math.sin(self.v[0])
         dx = vx * time / 1000
@@ -258,6 +267,7 @@ class Bal:
                 i.hit_box.x -= dx
                 i.image.x -= dx
 
+        # Проверка игровых условий 
         self.score_ += dx
         score.text = str(int(self.score_))
         if self.y > height + self.hit_box.radius:
@@ -288,11 +298,12 @@ class Road:
                     SegmentRoad(BallHitbox(self.width, pos), Decor(pos, self.decor)))
                 if not self.list_segments or math.dist(
                         (self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y),
-                        pos) >= self.width / 2:
+                        pos) >= self.width / 2:  # Условие для не сплошной линии
                     last_segment_pos = (self.list_segments[-1].hit_box.x, self.list_segments[-1].hit_box.y)
                     self.list_segments.append(
                         SegmentRoad(BallHitbox(self.width, pos), Decor(pos, self.decor)))
                     if not self.end_line:
+                        # Заполнение пустых промежутков
                         distance = math.dist(last_segment_pos, pos)
                         segment_count = int(
                             distance // (self.width / 2))  # Определяем количество сегментов для добавления
@@ -358,6 +369,7 @@ class Button:
                 self.flag_click = False
                 self.action()
 
+        # Анимация кнопки
         if self.real_time > 0:
             if self.real_time < self.time_first_part:
                 self.current_size = self.size_font - (self.size_font * 0.5 * (self.real_time / self.time_first_part))
@@ -399,12 +411,14 @@ class Monsters:
 
     def animate(self, time):
         self.sum_time += time
+        # Добавляем нового монстра если таймер прошел
         if self.sum_time >= self.period:
             self.period = randint(int(self.period * 0.7), int(self.period * 0.7) + 1000)
             self.sum_time = 0
             pos = (width + 75, randint(0, height - 75))
             self.list_monsters.append(
                 Monster(BallHitbox(self.width_monster, pos), Decor(pos, self.decor), randint(0, 1000)))
+        # Проверяем взаимодействие с игрой монстра
         for i in reversed(self.list_monsters):
             i.animate(time)
             if math.dist((i.hit_box.x + i.hit_box.radius, i.hit_box.y + i.hit_box.radius), (
@@ -436,6 +450,7 @@ class Window:
         self.list_objects.remove(obj)
 
 
+# Все ниже приведенные функции прописаны для игровых кнопок, приписка _f в конце отличает название функции от кнопки которая ее использует
 def exit_game_f():
     global running
     running = False
@@ -693,7 +708,7 @@ if __name__ == "__main__":
     rules_window = Window([back], Decor((0, 0), pygame.transform.scale(load_image('rules.png'), size)))
 
     active_window = 'main_window'
-
+    # Система активного окна работает так, что в словаре хранятся все окна, а обновляется только активное
     dict_windows = {'main_window': main_window,
                     'game_window': game_window,
                     'select_bal_window': select_bal_window,
